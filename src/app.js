@@ -5,6 +5,7 @@ const db_config = require('../config/db');
 
 // Импортируем роуты.
 const product = require('./routes/product.route'); 
+const statement = require('./routes/statement.route');
 
 // Инициализируем express приложение.
 const app = express();
@@ -23,6 +24,7 @@ app.use(bodyParser.urlencoded({extended: false}));
 app.use(cors());
 
 // Покдключаем роуты.
+app.use('/statement', statement);
 app.use('/product', product);
 
 let port = 1234;
