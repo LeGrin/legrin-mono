@@ -6,6 +6,7 @@ const db_config = require('../config/db');
 // Импортируем роуты.
 const product = require('./routes/product.route'); 
 const statement = require('./routes/statement.route');
+const logs = require('./routes/logs.route');
 
 // Инициализируем express приложение.
 const app = express();
@@ -26,8 +27,9 @@ app.use(cors());
 // Покдключаем роуты.
 app.use('/statement', statement);
 app.use('/product', product);
+app.use('/logs', logs);
 
-let port = 1234;
+let port = 80;
 app.listen(port, () => {
     console.log('Server is running on port ' + port)
 });

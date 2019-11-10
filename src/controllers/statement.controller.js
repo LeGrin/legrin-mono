@@ -1,4 +1,5 @@
 const Statement = require('../models/statement.model');
+const Logs = require('../models/logs.model');
 
 /**
  * Создать запись.
@@ -24,7 +25,17 @@ module.exports.statement_create = function (req, res, next) {
               }
         }
     }, function (err) {
-        if (err) return next(err);
+        if (err)
+        {
+            Logs.create({
+                time: Date.now,
+                message: err,
+                payload: req.body
+            }, function (err) {
+                if (err) return next(err);
+            });
+            return next(err);
+        } 
         res.send('Product created successfully!');
     });
     
@@ -66,7 +77,7 @@ module.exports.statement_details = function (req, res, next) {
  * Изменить запись по id.
  */
 module.exports.statement_update = function (req, res, next) {
-    Statement.findByIdAndUpdate(req.params.id, { $set: req.body }, function (err, product) {
+    Statement.findByIdAndUpdate(req.params.id, { $set: req.body }, function (err, statement) {
         if (err) return next(err);
         res.send('Product udpated.');
     });
