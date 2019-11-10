@@ -5,53 +5,44 @@ const Logs = require('../models/logs.model');
  * Создать запись.
  */
 module.exports.statement_create = function (req, res, next) {
-    console.log(req.body);
-    Statement.create({
-        type: req.body.type,
-        data: {
-            account: req.body.data.account,
-            statementItem:   {
-                id: req.body.data.statementItem.id,
-                time: req.body.data.statementItem.time,
-                description: req.body.data.statementItem.description,
-                mcc: req.body.data.statementItem.mcc,
-                hold: req.body.data.statementItem.hold,
-                amount: req.body.data.statementItem.amount,
-                operationAmount: req.body.data.statementItem.operationAmount,
-                currencyCode: req.body.data.statementItem.currencyCode,
-                commissionRate: req.body.data.statementItem.commissionRate,
-                cashbackAmount: req.body.data.statementItem.cashbackAmount,
-                balance: req.body.data.statementItem.balance
-              }
-        }
-    }, function (err) {
-        if (err)
-        {
-            Logs.create({
-                time: Date.now,
-                message: err,
-                payload: req.body
+    Statement.find({}, (err, items) => {
+        if (items.filter(i => i.data.statementItem.id === req.body.data.statementItem.id).length > 0) {
+            res.send('Statement already added!');
+        } else {
+            Statement.create({
+                type: req.body.type,
+                data: {
+                    account: req.body.data.account,
+                    statementItem:   {
+                        id: req.body.data.statementItem.id,
+                        time: req.body.data.statementItem.time,
+                        description: req.body.data.statementItem.description,
+                        mcc: req.body.data.statementItem.mcc,
+                        hold: req.body.data.statementItem.hold,
+                        amount: req.body.data.statementItem.amount,
+                        operationAmount: req.body.data.statementItem.operationAmount,
+                        currencyCode: req.body.data.statementItem.currencyCode,
+                        commissionRate: req.body.data.statementItem.commissionRate,
+                        cashbackAmount: req.body.data.statementItem.cashbackAmount,
+                        balance: req.body.data.statementItem.balance
+                      }
+                }
             }, function (err) {
-                if (err) return next(err);
+                if (err)
+                {
+                    Logs.create({
+                        time: Date.now,
+                        message: err,
+                        payload: req.body
+                    }, function (err) {
+                        if (err) return next(err);
+                    });
+                    return next(err);
+                } 
+                res.send('Product created successfully!');
             });
-            return next(err);
-        } 
-        res.send('Product created successfully!');
+        }
     });
-    
-    /*
-        Можно создать запись и так:
-
-        let product = new Product({
-            name: req.body.name,
-            price: req.body.price
-        });
-
-        product.save(function (err) {
-            if (err) return next(err);
-            res.send('Product Created successfully')
-        });
-    */
 };
 
 /**

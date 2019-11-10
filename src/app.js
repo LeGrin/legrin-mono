@@ -4,9 +4,9 @@ const cors = require('cors');
 const db_config = require('../config/db');
 
 // Импортируем роуты.
-const product = require('./routes/product.route'); 
 const statement = require('./routes/statement.route');
 const logs = require('./routes/logs.route');
+const summary = require('./routes/summary.route');
 
 // Инициализируем express приложение.
 const app = express();
@@ -26,8 +26,8 @@ app.use(cors());
 
 // Покдключаем роуты.
 app.use('/statement', statement);
-app.use('/product', product);
 app.use('/logs', logs);
+app.use('/summary', summary);
 
 let port = 80;
 app.listen(port, () => {
