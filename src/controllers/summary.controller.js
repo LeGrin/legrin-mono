@@ -49,7 +49,9 @@ module.exports.populate = async (req, res, next) => {
                 });
         }
     });
-    res.send('Summary populated');
+    summaries = await Summary.find();
+    res.send(summaries);
+
 };
 /**
  * Получить список всех записей.
