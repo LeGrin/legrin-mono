@@ -9,6 +9,6 @@ const summary_controller = require('../controllers/summary.controller');
  * Получить список всех записей.
  */
 router.get('/', summary_controller.trigger);
-
+router.get('/populate', summary_controller.populate);
 
 module.exports = router;

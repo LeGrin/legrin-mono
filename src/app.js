@@ -14,6 +14,7 @@ const app = express();
 // Устанавливаем соединение между mongoose и mongodb.
 const mongoose = require('mongoose');
 const mongoDB = process.env.MONGODB_URI || db_config.url;
+console.log(mongoDB);
 mongoose.connect(mongoDB, { useNewUrlParser: true }); 
 mongoose.Promise = global.Promise;
 const db = mongoose.connection;
