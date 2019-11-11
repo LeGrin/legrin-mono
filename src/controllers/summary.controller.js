@@ -13,11 +13,6 @@ module.exports.populate = async (req, res, next) => {
             if (err) return next(err);
         });
     });
-    statements.forEach( summary => {
-        Statement.findByIdAndRemove(summary._id, function (err) {
-            if (err) return next(err);
-        });
-    });
     statements.forEach(async item => {
 
         if (item.data.statementItem.amount > 0) {
