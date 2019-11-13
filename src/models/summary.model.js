@@ -3,7 +3,7 @@ const Schema = mongoose.Schema;
 
 const SummarySchema = new Schema({
     date: {
-        type: Date,
+        type: Number,
         reuired: true
     },
     spend: {
@@ -16,6 +16,10 @@ const SummarySchema = new Schema({
     },
     delta : {
         type: Number,
+        required: true
+    },
+    statements: {
+        type: Array,
         required: true
     }
 });

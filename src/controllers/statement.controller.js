@@ -1,15 +1,19 @@
 const Statement = require('../models/statement.model');
+const Summary = require('../models/summary.model');
 const Logs = require('../models/logs.model');
 
 /**
  * Создать запись.
  */
-module.exports.statement_create = function (req, res, next) {
-    Statement.find({}, (err, items) => {
-        if (items.filter(i => i.data.statementItem.id === req.body.data.statementItem.id).length > 0) {
+module.exports.statement_create = async (req, res, next) => {
+    try {
+        const statements = await Statement.find();
+    
+        if (statements.filter(i => i.data.statementItem.id === req.body.data.statementItem.id).length > 0) {
             res.send('Statement already added!');
+            return;
         } else {
-            Statement.create({
+            const newStatement = new Statement({
                 type: req.body.type,
                 data: {
                     account: req.body.data.account,
@@ -27,60 +31,132 @@ module.exports.statement_create = function (req, res, next) {
                         balance: req.body.data.statementItem.balance
                       }
                 }
-            }, function (err) {
-                if (err)
-                {
-                    Logs.create({
-                        time: Date.now,
-                        message: err,
-                        payload: req.body
-                    }, function (err) {
-                        if (err) return next(err);
-                    });
-                    return next(err);
-                } 
-                res.send('Product created successfully!');
             });
+            newStatement.save();
         }
-    });
+    } catch(err) {
+        const log = new Logs({
+            time: Date.now(),
+            message: err,
+            payload: JSON.stringify(req.body)
+        });
+        log.save();
+        return next(err);
+    } 
+    await updateSummary(req.body);
+    res.send('Product created successfully!');  
+    return;
+
 };
+
+updateSummary = async (body) => {
+    var start = new Date();
+    start.setHours(0,0,0,0);
+    start = start.getTime();
+
+    var end = new Date();
+    end.setHours(23,59,59,999);
+    end = end.getTime(); 
+    
+    let todaysSummary = (await Summary.find({date: start}))[0];
+    if (!todaysSummary) {
+
+        var yesterday = new Date(start);
+        yesterday.setDate(yesterday.getDate()-1);
+        yesterday.setHours(0,0,0,0);
+        
+        let yesterdaysSummary = Summary.find({date: yesterday})
+            || new Summary ({
+                date: yesterday,
+                limit: 100000,
+                delta: 100000,
+                spend: 0
+            });
+
+        todaysSummary = new Summary ({
+            date: start,
+            limit: yesterdaysSummary.limit,
+            delta: yesterdaysSummary.delta + (yesterdaysSummary.limit + body.data.statementItem.amount),
+            spend: body.data.statementItem.amount,
+            statements: [body.data.statementItem.id]
+        });
+        await todaysSummary.save();
+      } else {
+        todaysSummary.spend = todaysSummary.spend + body.data.statementItem.amount;
+        todaysSummary.delta = todaysSummary.delta + (todaysSummary.limit + body.data.statementItem.amount);
+        todaysSummary.statements.push(body.data.statementItem.id)
+        await todaysSummary.save();
+      }
+}
 
 /**
  * Получить список всех записей.
  */
-module.exports.statement_all_details = function (req, res) {
-    Statement.find({}, (err, items) => {
-        res.send(items);
-    });
+module.exports.statement_all_details = async (req, res) => {
+    try {
+        var statements = await Statement.find();
+        res.send(statements.sort((a,b) => a.data.statementItem.time > b.data.statementItem.time ? 1 : -1));
+    } catch(err) {
+        const log = new Logs({
+            time: Date.now(),
+            message: err,
+            payload: JSON.stringify(req.body)
+        });
+        log.save();
+        return next(err);
+    }
 }
 
 /**
  * Получить запись по id.
  */
-module.exports.statement_details = function (req, res, next) {
-    Statement.findById(req.params.id, function (err, product) {
-        if (err) return next(err);
-        res.send(product);
-    });
+module.exports.statement_details = async (req, res, next) => {
+    try {
+        const statement = await Statement.findById(req.params.id);    
+        res.send(statement);
+    } catch(err) {
+        const log = new Logs({
+            time: Date.now(),
+            message: err,
+            payload: JSON.stringify(req.body)
+        });
+        log.save();
+        return next(err);
+    }
 };
 
 /**
  * Изменить запись по id.
  */
-module.exports.statement_update = function (req, res, next) {
-    Statement.findByIdAndUpdate(req.params.id, { $set: req.body }, function (err, statement) {
-        if (err) return next(err);
-        res.send('Product udpated.');
-    });
+module.exports.statement_update = async (req, res, next) => {
+    try {
+        const statement = await Statement.findByIdAndUpdate(req.params.id, { $set: req.body });    
+        res.send(statement);
+    } catch(err) {
+        const log = new Logs({
+            time: Date.now(),
+            message: err,
+            payload: JSON.stringify(req.body)
+        });
+        log.save();
+        return next(err);
+    }
 };
 
 /**
  * Удалить запись по id.
  */
-module.exports.statement_delete = function (req, res, next) {
-    console.log(req.params);
-    Statement.findByIdAndRemove(req.params.id, function (err) {
-        if (err) return next(err);
+module.exports.statement_delete = async (req, res, next) => {
+    try {
+        const statement = await Statement.findByIdAndRemove(req.params.id);    
         res.send('Deleted successfully!');
-    });
+    } catch(err) {
+        const log = new Logs({
+            time: Date.now(),
+            message: err,
+            payload: JSON.stringify(req.body)
+        });
+        log.save();
+        return next(err);
+    }
 };
