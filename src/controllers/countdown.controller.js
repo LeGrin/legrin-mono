@@ -17,7 +17,7 @@ module.exports.schedule_ping = async (req, res) => {
 }
 
 module.exports.get_schedule = async (req, res) => {
-    let countdown = await Countdown.find()[0];
+    let countdown = (await Countdown.find())[0];
     if (countdown && countdown.scheduled) {
         res.send('true');
         countdown.scheduled = false;
