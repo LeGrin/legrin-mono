@@ -7,6 +7,7 @@ const db_config = require('../config/db');
 const statement = require('./routes/statement.route');
 const logs = require('./routes/logs.route');
 const summary = require('./routes/summary.route');
+const countdown = require('./routes/countdown.route');
 
 // Инициализируем express приложение.
 const app = express();
@@ -29,6 +30,7 @@ app.use(cors());
 app.use('/statement', statement);
 app.use('/logs', logs);
 app.use('/summary', summary);
+app.use('/countdown', countdown);
 
 let port = 80;
 app.listen(port, () => {
