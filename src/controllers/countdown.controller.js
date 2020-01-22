@@ -2,7 +2,7 @@ const Countdown = require('../models/countdown.model');
 const fetch = require('node-fetch');
 
 module.exports.schedule_ping = async (req, res) => {
-    let countdown = await Countdown.find()[0];
+    let countdown = (await Countdown.find())[0];
     if (!countdown) {
         countdown = new Countdown({
             time: Date.now(),
