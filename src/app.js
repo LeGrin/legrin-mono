@@ -3,6 +3,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const db_config = require('../config/db');
 const https = require('https');
+const http = require('http');
 const fs = require('fs');
 
 // Импортируем роуты.
@@ -34,10 +35,7 @@ app.use('/logs', logs);
 app.use('/summary', summary);
 app.use('/countdown', countdown);
 
-let port = 80;
-app.listen(port, () => {
-    console.log('Server is running on port ' + port)
-});
+
 
 var key = fs.readFileSync(__dirname + '/../selfsigned.key');
 var cert = fs.readFileSync(__dirname + '/../selfsigned.crt');
@@ -47,6 +45,13 @@ var options = {
 };
 
 var servers = https.createServer(options, app);
+
+var server = http.createServer(app);
+
+let port = 80;
+server.listen(port, () => {
+    console.log('Server is running on port ' + port)
+});
 
 servers.listen(3000, () => {
     console.log("server starting on port : " + 3000)
