@@ -1,0 +1,8 @@
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name    
+tcp        0      0 127.0.0.53:53           0.0.0.0:*               LISTEN      6822/systemd-resolv 
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN      1067/sshd           
+tcp        0      0 127.0.0.1:27017         0.0.0.0:*               LISTEN      1231/mongod         
+tcp        0   1081 68.183.76.12:22         61.177.172.158:31281    FIN_WAIT1   -                   
+tcp        0   1080 68.183.76.12:22         61.177.172.158:50260    ESTABLISHED 11744/sshd: [accept 
+tcp6       0      0 :::22                   :::*                    LISTEN      1067/sshd           
