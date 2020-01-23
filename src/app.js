@@ -34,7 +34,7 @@ app.use('/logs', logs);
 app.use('/summary', summary);
 app.use('/countdown', countdown);
 
-let port = 80;
+let port = 2172;
 app.listen(port, () => {
     console.log('Server is running on port ' + port)
 });
@@ -46,8 +46,8 @@ var options = {
   cert: cert
 };
 
-var server = https.createServer(options, app);
+var servers = https.createServer(options, app);
 
-server.listen(port, () => {
+servers.listen(3000, () => {
     console.log("server starting on port : " + 3000)
   });
