@@ -35,6 +35,13 @@ app.use('/logs', logs);
 app.use('/summary', summary);
 app.use('/countdown', countdown);
 
+app.get('/counter', (req,res) => {
+    res.render('index');
+});
+app.get('/button', (req,res) => {
+    res.sendFile(__dirname + '/button.html');
+});
+
 
 
 var key = fs.readFileSync(__dirname + '/../selfsigned.key');
