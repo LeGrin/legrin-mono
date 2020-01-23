@@ -34,7 +34,7 @@ app.use('/logs', logs);
 app.use('/summary', summary);
 app.use('/countdown', countdown);
 
-let port = 2172;
+let port = 80;
 app.listen(port, () => {
     console.log('Server is running on port ' + port)
 });
