@@ -13,7 +13,7 @@ const summary = require('./routes/summary.route');
 const countdown = require('./routes/countdown.route');
 const calendar = require('./calendar/calendar');
 
-calendar.addEvents(1200);
+//calendar.addEvents(1200);
 
 // Инициализируем express приложение.
 const app = express();
