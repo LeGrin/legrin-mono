@@ -13,7 +13,6 @@ const summary = require('./routes/summary.route');
 const countdown = require('./routes/countdown.route');
 const calendar = require('./calendar/calendar');
 
-//calendar.addEvents(1200);
 
 // Инициализируем express приложение.
 const app = express();
@@ -26,6 +25,7 @@ mongoose.connect(mongoDB, { useNewUrlParser: true });
 mongoose.Promise = global.Promise;
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
+calendar.init();
 
 // Устанавливаем middleware обработчики.
 app.use(bodyParser.json());

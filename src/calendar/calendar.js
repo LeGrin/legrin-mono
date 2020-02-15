@@ -1,19 +1,62 @@
 const fs = require('fs');
 const readline = require('readline');
 const {google} = require('googleapis');
-const { promisify } = require('util')
+const { promisify } = require('util');
+const Statement = require('../models/statement.model');
+const Calendar = require('../models/calendar.model');
 
-
-const readFileAsync = promisify(fs.readFile)
-const writeFileAsync = promisify(fs.writeFile)
+const readFileAsync = promisify(fs.readFile);
+const writeFileAsync = promisify(fs.writeFile);
+let oAuth2Client;
 
 const SCOPES = ['https://www.googleapis.com/auth/calendar'];
 
 const TOKEN_PATH = './src/calendar/token.json';
 
-init = async() => {
-  var creds = await readFileAsync('./src/calendar/credentials.json');
-  return await authorize(JSON.parse(creds));
+module.exports.init = async() => {
+  let timer = setInterval(calculateTodaysSummary, 5000);
+
+  fs.readFile('src/calendar/credentials.json', (err, content) => {
+    if (err) return console.log('Error loading client secret file:', err);
+    // Authorize a client with credentials, then call the Google Calendar API.
+    authorize(JSON.parse(content), listEvents);
+  });
+}
+
+calculateTodaysSummary = async() => {
+  var endofDay = new Date();
+  if (new Date().getTime() > endofDay.getTime()) {
+    var start = endofDay;
+    start.setHours(0,0,0,0);
+    start = start.getTime();
+
+    var end = endofDay;
+    end.setHours(23,59,59,999);
+    end = end.getTime();
+
+    let todaysSummary = (await Calendar.find())
+    .filter(c => c.date == new Date(endofDay.setHours(0,0,0,0)).toDateString())[0];
+
+    if (todaysSummary) {
+      return;
+    }
+
+    var todaysStatements = (await Statement.find())
+    .filter(st => st.data.statementItem.time*1000 < end 
+        && st.data.statementItem.time*1000 > start
+        && st.data.statementItem.amount < 0);
+    
+    const spend = todaysStatements.reduce(function (accumulator, item) {
+        return accumulator + item.data.statementItem.amount;
+        }, 0);
+    const details = todaysStatements.reduce(function (accumulator, item) {
+      return accumulator + `\n${item.data.statementItem.description.replace(/(\r\n|\n|\r)/gm, "") + ' : ' + -1*item.data.statementItem.amount/100}`;
+      }, '');
+      await addEvents(endofDay,-1*spend/100, details);
+}
+  //if(true) {
+   
+ // }
 
 }
 
@@ -24,30 +67,27 @@ init = async() => {
  * Create an OAuth2 client with the given credentials, and then execute the
  * given callback function.
  */
-authorize = async (credentials) => {
+function authorize(credentials, callback) {
   const {client_secret, client_id, redirect_uris} = credentials.installed;
-  console.log('1');
-
   const oAuth2Client = new google.auth.OAuth2(
       client_id, client_secret, redirect_uris[0]);
-      console.log('2');
 
   // Check if we have previously stored a token.
-  
-  let token = '';
-  try {
-    console.log('3');
-
-    token = await readFileAsync(TOKEN_PATH);
-    console.log('4');
-
+  fs.readFile(TOKEN_PATH, (err, token) => {
+    if (err) return getAccessToken(oAuth2Client, callback);
     oAuth2Client.setCredentials(JSON.parse(token));
-    console.log('5');
+    callback(oAuth2Client);
+  });
+}
 
-  } catch (err) {
-    token = await getAccessToken(oAuth2Client, token);
-    oAuth2Client.setCredentials(token);
-  }
+authorizeAsync = async () => {
+  const credentials = JSON.parse(await readFileAsync('src/calendar/credentials.json'));
+  const {client_secret, client_id, redirect_uris} = credentials.installed;
+  const oAuth2Client = new google.auth.OAuth2(
+      client_id, client_secret, redirect_uris[0]);
+  
+  const token = await readFileAsync(TOKEN_PATH);
+  oAuth2Client.setCredentials(JSON.parse(token))
   return oAuth2Client;
 }
 
@@ -57,7 +97,7 @@ authorize = async (credentials) => {
  * @param {google.auth.OAuth2} oAuth2Client The OAuth2 client to get token for.
  * @param {getEventsCallback} callback The callback for the authorized client.
  */
-function getAccessToken(oAuth2Client, token) {
+function getAccessToken(oAuth2Client, callback) {
   const authUrl = oAuth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
@@ -67,11 +107,18 @@ function getAccessToken(oAuth2Client, token) {
     input: process.stdin,
     output: process.stdout,
   });
-  rl.question('Enter the code from that page here: ', async (code) => {
+  rl.question('Enter the code from that page here: ', (code) => {
     rl.close();
-    token = await oAuth2Client.getToken(code);
-    await writeFileAsync(TOKEN_PATH, JSON.stringify(token));
-    oAuth2Client.setCredentials(token);
+    oAuth2Client.getToken(code, (err, token) => {
+      if (err) return console.error('Error retrieving access token', err);
+      oAuth2Client.setCredentials(token);
+      // Store the token to disk for later program executions
+      fs.writeFile(TOKEN_PATH, JSON.stringify(token), (err) => {
+        if (err) return console.error(err);
+        console.log('Token stored to', TOKEN_PATH);
+      });
+      callback(oAuth2Client);
+    });
   });
 }
 
@@ -79,29 +126,68 @@ function getAccessToken(oAuth2Client, token) {
  * Lists the next 10 events on the user's primary calendar.
  * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
  */
-module.exports.addEvents = async (amount) => {
-  let auth = await init();
-  console.log(JSON.stringify(auth));
-  console.log('6');
+function listEvents(auth) {
+  const calendar = google.calendar({version: 'v3', auth});
+  calendar.events.list({
+    calendarId: 'dmhnmbi4hpshhn2o8op3te2roo@group.calendar.google.com',
+    timeMin: (new Date()).toISOString(),
+    maxResults: 10,
+    singleEvents: true,
+    orderBy: 'startTime',
+  }, (err, res) => {
+    if (err) return console.log('The API returned an error: ' + err);
+    const events = res.data.items;
+    if (events.length) {
+      console.log('Upcoming 10 events:');
+      events.map((event, i) => {
+        const start = event.start.dateTime || event.start.date;
+        console.log(`${start} - ${event.summary}`);
+      });
+    } else {
+      console.log('No upcoming events found.');
+    }
+  });
+}
+
+/**
+ * Lists the next 10 events on the user's primary calendar.
+ * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
+ */
+addEvents = async (date, amount, details) => {
+  let auth = await authorizeAsync();
 
   const calendar = google.calendar({version: 'v3', auth});
-  console.log('7');
 
-  // Refer to the Node.js quickstart on how to setup the environment:
-  // https://developers.google.com/calendar/quickstart/node
-  // Change the scope to 'https://www.googleapis.com/auth/calendar' and delete any
-  // stored credentials.
-
+  let dateParsed = date.getFullYear() + '-' + (date.getMonth()+1) + '-' +  date.getDate() ;
+  var emojiAmount = '⚪⚪⚪';
+  if (amount > 300) {
+    emojiAmount = '🔵⚪⚪';
+  }
+  if (amount > 500) {
+    emojiAmount = '🔵🔵⚪';
+  }
+  if (amount > 800) {
+    emojiAmount = '🔵🔵🔵';
+  }
+  if (amount > 1000) {
+    emojiAmount = '🔴⚪⚪';
+  }
+  if (amount > 3000) {
+    emojiAmount = '🔴🔴⚪';
+  }
+  if (amount > 5000) {
+    emojiAmount = '🔴🔴🔴';
+  } 
   var event = {
-    'summary': `💶${amount}`,
-    'location': '800 Howard St., San Francisco, CA 94103',
-    'description': `💶${amount}`,
+    'summary': emojiAmount + ` 💶${amount}`,
+    'location': '',
+    'description': details,
     'start': {
-      'date': '2020-01-24',
+      'date': dateParsed,
       'timeZone': 'Europe/Kiev'
     },
     'end': {
-      'date': '2020-01-24',
+      'date': dateParsed,
       'timeZone': 'Europe/Kiev'
     },
     'recurrence': [
@@ -115,8 +201,6 @@ module.exports.addEvents = async (amount) => {
     },
   };
 
-  console.log('8');
-
   calendar.events.insert({
     auth: auth,
     calendarId: 'dmhnmbi4hpshhn2o8op3te2roo@group.calendar.google.com',
@@ -127,5 +211,7 @@ module.exports.addEvents = async (amount) => {
       return;
     }
     console.log('Event created: %s', event.htmlLink);
+    let newEvent = new Calendar({date : new Date(date.setHours(0,0,0,0)).toDateString()});
+    newEvent.save();
   });
 }
