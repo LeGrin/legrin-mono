@@ -61,9 +61,11 @@ calculateTodaysSummary = async () => {
     const details = todaysStatements.reduce(function(accumulator, item) {
       return (
         accumulator +
-        `\n${ getTransactionAmountEmojii((-1 * item.data.statementItem.amount)/100)
-          + getHoursAndMinutes(item.data.statementItem.time)
-          + item.data.statementItem.description.replace(/(\r\n|\n|\r)/gm, "") +
+        `\n${getTransactionAmountEmojii(
+          (-1 * item.data.statementItem.amount) / 100
+        ) +
+          getHoursAndMinutes(item.data.statementItem.time) +
+          item.data.statementItem.description.replace(/(\r\n|\n|\r)/gm, "") +
           " : " +
           (-1 * item.data.statementItem.amount) / 100}`
       );
@@ -73,21 +75,19 @@ calculateTodaysSummary = async () => {
   }
 };
 
-getTransactionAmountEmojii = (amount) => {
-    if (amount < 500)
-      return '✔️';
-    if (amount < 1000)
-      return '⚠️';
-    if(amount > 1000)
-      return '❗️';
-} 
+getTransactionAmountEmojii = amount => {
+  if (amount < 500) return "✔️";
+  if (amount < 1000) return "⚠️";
+  if (amount > 1000) return "❗️";
+};
 
-getHoursAndMinutes = (timeStampt) => {
-  let date =  new Date(timeStampt*1000);
-  let hours = date.getHours() > 9 ? date.getHours() : '0' + date.getHours();
-  let minutes = date.getMinutes() > 9 ? date.getMinutes() : '0' + date.getMinutes();
-  return hours + ':' + minutes + ' ';
-} 
+getHoursAndMinutes = timeStampt => {
+  let date = new Date(timeStampt * 1000);
+  let hours = date.getHours() > 9 ? date.getHours() : "0" + date.getHours();
+  let minutes =
+    date.getMinutes() > 9 ? date.getMinutes() : "0" + date.getMinutes();
+  return hours + ":" + minutes + " ";
+};
 
 function authorize(credentials, callback) {
   const { client_secret, client_id, redirect_uris } = credentials.installed;
