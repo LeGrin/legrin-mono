@@ -21,7 +21,7 @@ module.exports.init = async () => {
 };
 
 calculateTodaysSummary = async () => {
-  let endofDay = new Date();
+  let endofDay = new Date(2020,0, 1);
   endofDay.setHours(23, 59, 30, 0);
   if (new Date().getTime() > endofDay.getTime()) {
     let start = endofDay;
@@ -87,6 +87,59 @@ getHoursAndMinutes = timeStampt => {
   let minutes =
     date.getMinutes() > 9 ? date.getMinutes() : "0" + date.getMinutes();
   return hours + ":" + minutes + " ";
+};
+
+getTotalAmountEmoji = amount => {
+  if (amount < 300) return "⚪⚪⚪";
+  if (amount < 500) return "🔵⚪⚪";
+  if (amount < 800) return "🔵🔵⚪";
+  if (amount < 1000) return "🔵🔵🔵";
+  if (amount < 3000) return "🔴⚪⚪";
+  if (amount < 5000) return "🔴🔴⚪";
+  return "🔴🔴🔴";
+};
+
+addEvents = async (date, amount, details) => {
+  let auth = await authorizeAsync();
+
+  const calendar = google.calendar({ version: "v3", auth });
+
+  let dateParsed =
+    date.getFullYear() + "-" + (date.getMonth() + 1) + "-" + date.getDate();
+
+  let event = {
+    summary: getTotalAmountEmoji(amount) + ` 💶${amount}`,
+    description: details,
+    start: {
+      date: dateParsed,
+      timeZone: "Europe/Kiev"
+    },
+    end: {
+      date: dateParsed,
+      timeZone: "Europe/Kiev"
+    }
+  };
+
+  calendar.events.insert(
+    {
+      auth: auth,
+      calendarId: "dmhnmbi4hpshhn2o8op3te2roo@group.calendar.google.com",
+      resource: event
+    },
+    function(err, event) {
+      if (err) {
+        console.log(
+          "There was an error contacting the Calendar service: " + err
+        );
+        return;
+      }
+      console.log("Event created: %s", event.htmlLink);
+      let newEvent = new Calendar({
+        date: new Date(date.setHours(0, 0, 0, 0)).toDateString()
+      });
+      newEvent.save();
+    }
+  );
 };
 
 function authorize(credentials, callback) {
@@ -169,71 +222,3 @@ function listEvents(auth) {
     }
   );
 }
-
-addEvents = async (date, amount, details) => {
-  let auth = await authorizeAsync();
-
-  const calendar = google.calendar({ version: "v3", auth });
-
-  let dateParsed =
-    date.getFullYear() + "-" + (date.getMonth() + 1) + "-" + date.getDate();
-  let emojiAmount = "⚪⚪⚪";
-  if (amount > 300) {
-    emojiAmount = "🔵⚪⚪";
-  }
-  if (amount > 500) {
-    emojiAmount = "🔵🔵⚪";
-  }
-  if (amount > 800) {
-    emojiAmount = "🔵🔵🔵";
-  }
-  if (amount > 1000) {
-    emojiAmount = "🔴⚪⚪";
-  }
-  if (amount > 3000) {
-    emojiAmount = "🔴🔴⚪";
-  }
-  if (amount > 5000) {
-    emojiAmount = "🔴🔴🔴";
-  }
-  let event = {
-    summary: emojiAmount + ` 💶${amount}`,
-    location: "",
-    description: details,
-    start: {
-      date: dateParsed,
-      timeZone: "Europe/Kiev"
-    },
-    end: {
-      date: dateParsed,
-      timeZone: "Europe/Kiev"
-    },
-    recurrence: [],
-    attendees: [],
-    reminders: {
-      useDefault: false,
-      overrides: []
-    }
-  };
-
-  calendar.events.insert(
-    {
-      auth: auth,
-      calendarId: "dmhnmbi4hpshhn2o8op3te2roo@group.calendar.google.com",
-      resource: event
-    },
-    function(err, event) {
-      if (err) {
-        console.log(
-          "There was an error contacting the Calendar service: " + err
-        );
-        return;
-      }
-      console.log("Event created: %s", event.htmlLink);
-      let newEvent = new Calendar({
-        date: new Date(date.setHours(0, 0, 0, 0)).toDateString()
-      });
-      newEvent.save();
-    }
-  );
-};
