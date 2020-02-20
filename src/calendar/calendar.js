@@ -21,7 +21,7 @@ module.exports.init = async () => {
 };
 
 calculateTodaysSummary = async () => {
-  let endofDay = new Date();
+  let endofDay = new Date(2020,01,19);
   endofDay.setHours(23, 59, 30, 0);
   if (new Date().getTime() > endofDay.getTime()) {
     let start = endofDay;

@@ -65,7 +65,7 @@ updateSummary = async (body) => {
         yesterday.setDate(yesterday.getDate()-1);
         yesterday.setHours(0,0,0,0);
         
-        let yesterdaysSummary = Summary.find({date: yesterday})
+        let yesterdaysSummary = Summary.find({date: yesterday})[0]
             || new Summary ({
                 date: yesterday,
                 limit: 100000,
@@ -81,11 +81,13 @@ updateSummary = async (body) => {
             statements: [body.data.statementItem.id]
         });
         await todaysSummary.save();
+        console.log('Summary created ' + start);
       } else {
         todaysSummary.spend = todaysSummary.spend + body.data.statementItem.amount;
         todaysSummary.delta = todaysSummary.delta + (todaysSummary.limit + body.data.statementItem.amount);
         todaysSummary.statements.push(body.data.statementItem.id)
         await todaysSummary.save();
+        console.log('Summary updated ' + start);
       }
 }
 
