@@ -32,7 +32,7 @@ module.exports.statement_create = async (req, res, next) => {
                       }
                 }
             });
-            newStatement.save();
+            await newStatement.save();
         }
     } catch(err) {
         const log = new Logs({
@@ -40,7 +40,7 @@ module.exports.statement_create = async (req, res, next) => {
             message: err,
             payload: JSON.stringify(req.body)
         });
-        log.save();
+        await log.save();
         return next(err);
     } 
     await updateSummary(req.body);
@@ -65,7 +65,7 @@ updateSummary = async (body) => {
         yesterday.setDate(yesterday.getDate()-1);
         yesterday.setHours(0,0,0,0);
         
-        let yesterdaysSummary = Summary.find({date: yesterday})[0]
+        let yesterdaysSummary = (await Summary.find({date: yesterday}))[0]
             || new Summary ({
                 date: yesterday,
                 limit: 100000,
