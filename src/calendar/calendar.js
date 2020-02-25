@@ -11,16 +11,32 @@ const SCOPES = ["https://www.googleapis.com/auth/calendar"];
 
 const TOKEN_PATH = __dirname + "/token.json";
 
+let Logdate = new Date();
+
 module.exports.init = async () => {
-  let timer = setInterval(calculateTodaysSummary, 5000)
+  let timer = setInterval(calculateTodaysSummary, 5000);
+  console.log(getLogDate())
   fs.readFile(__dirname + "/credentials.json", (err, content) => {
     if (err) return console.log("Error loading client secret file:", err);
     authorize(JSON.parse(content), listEvents);
   });
 };
 
+getLogDate = () => {
+	let date = new Date();
+	let logDate = date.getFullYear() +
+      "-" +
+      (date.getMonth() + 1) +
+      "-" +
+      date.getDate() + 
+      " " + date.GetHour() > 9 ? date.getHour() : '0' + date.getHour() +
+      ":" + date.GetMinutes() > 9 ? date.getMinutes() : '0' + date.getMinutes() +
+      ":" + date.GetSeconds() > 9 ? date.getSeconds() : '0' + date.getSeconds();
+	return logDate;
+}
+
 calculateTodaysSummary = async () => {
-  let endofDay = new Date();
+  let endofDay = new Date(2020,01,24);
   endofDay.setHours(23, 59, 30, 0);
   if (new Date().getTime() > endofDay.getTime()) {
     let start = endofDay;
