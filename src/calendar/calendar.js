@@ -10,11 +10,12 @@ const readFileAsync = promisify(fs.readFile);
 const SCOPES = ['https://www.googleapis.com/auth/calendar'];
 
 const TOKEN_PATH = __dirname + '/token.json';
+const CREDENTIAL_PATH = __dirname + '/credentials.json';
 
 module.exports.init = async () => {
   let timer = setInterval(calculateTodaysSummary, 5000);
   console.log(getLogDate());
-  fs.readFile(__dirname + '/credentials.json', (err, content) => {
+  fs.readFile(CREDENTIAL_PATH, (err, content) => {
     if (err) return console.log(getLogDate() + 'Error loading client secret file:', err);
     authorize(JSON.parse(content), listEvents);
   });
@@ -176,7 +177,7 @@ function authorize(credentials, callback) {
 
 authorizeAsync = async () => {
   const credentials = JSON.parse(
-    await readFileAsync('src/calendar/credentials.json')
+    await readFileAsync(CREDENTIAL_PATH)
   );
   const { client_secret, client_id, redirect_uris } = credentials.installed;
   const oAuth2Client = new google.auth.OAuth2(
