@@ -9,19 +9,18 @@ const readFileAsync = promisify(fs.readFile);
 
 const SCOPES = ["https://www.googleapis.com/auth/calendar"];
 
-const TOKEN_PATH = "./src/calendar/token.json";
+const TOKEN_PATH = __dirname + "/token.json";
 
 module.exports.init = async () => {
-  let timer = setInterval(calculateTodaysSummary, 5000);
-
-  fs.readFile("src/calendar/credentials.json", (err, content) => {
+  let timer = setInterval(calculateTodaysSummary, 5000)
+  fs.readFile(__dirname + "/credentials.json", (err, content) => {
     if (err) return console.log("Error loading client secret file:", err);
     authorize(JSON.parse(content), listEvents);
   });
 };
 
 calculateTodaysSummary = async () => {
-  let endofDay = new Date(2020,01,19);
+  let endofDay = new Date();
   endofDay.setHours(23, 59, 30, 0);
   if (new Date().getTime() > endofDay.getTime()) {
     let start = endofDay;
