@@ -34,7 +34,7 @@ getLogDate = () => {
 }
 
 calculateTodaysSummary = async () => {
-  let endofDay = new Date(2020,01,24);
+  let endofDay = new Date();
   endofDay.setHours(23, 59, 30, 0);
   if (new Date().getTime() > endofDay.getTime()) {
     let start = endofDay;
@@ -49,7 +49,7 @@ calculateTodaysSummary = async () => {
       c => c.date === new Date(endofDay.setHours(0, 0, 0, 0)).toDateString()
     )[0];
     if (todaysSummary) {
-      //return;
+      return;
     }
 
     let date =
