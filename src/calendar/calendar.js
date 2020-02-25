@@ -1,38 +1,35 @@
-const fs = require("fs");
-const readline = require("readline");
-const { google } = require("googleapis");
-const { promisify } = require("util");
-const Statement = require("../models/statement.model");
-const Calendar = require("../models/calendar.model");
+const fs = require('fs');
+const readline = require('readline');
+const { google } = require('googleapis');
+const { promisify } = require('util');
+const Statement = require('../models/statement.model');
+const Calendar = require('../models/calendar.model');
 
 const readFileAsync = promisify(fs.readFile);
 
-const SCOPES = ["https://www.googleapis.com/auth/calendar"];
+const SCOPES = ['https://www.googleapis.com/auth/calendar'];
 
-const TOKEN_PATH = __dirname + "/token.json";
-
-let Logdate = new Date();
+const TOKEN_PATH = __dirname + '/token.json';
 
 module.exports.init = async () => {
   let timer = setInterval(calculateTodaysSummary, 5000);
-  console.log(getLogDate())
-  fs.readFile(__dirname + "/credentials.json", (err, content) => {
-    if (err) return console.log("Error loading client secret file:", err);
+  console.log(getLogDate());
+  fs.readFile(__dirname + '/credentials.json', (err, content) => {
+    if (err) return console.log(getLogDate() + 'Error loading client secret file:', err);
     authorize(JSON.parse(content), listEvents);
   });
 };
 
 getLogDate = () => {
 	let date = new Date();
-	let logDate = date.getFullYear() +
-      "-" +
-      (date.getMonth() + 1) +
-      "-" +
-      date.getDate() + 
-      " " + date.GetHour() > 9 ? date.getHour() : '0' + date.getHour() +
-      ":" + date.GetMinutes() > 9 ? date.getMinutes() : '0' + date.getMinutes() +
-      ":" + date.GetSeconds() > 9 ? date.getSeconds() : '0' + date.getSeconds();
-	return logDate;
+	return '[' + date.getFullYear().toString() +
+      '-' +
+      (date.getMonth() + 1).toString() +
+      '-' +
+      date.getDate().toString() + 
+      ' ' + (date.getHours() > 9 ? date.getHours().toString() : '0' + date.getHours().toString()) +
+      ':' + (date.getMinutes() > 9 ? date.getMinutes().toString() : '0' + date.getMinutes().toString()) +
+      ':' + (date.getSeconds() > 9 ? date.getSeconds().toString() : '0' + date.getSeconds().toString()) + '] ';
 }
 
 calculateTodaysSummary = async () => {
@@ -51,16 +48,16 @@ calculateTodaysSummary = async () => {
       c => c.date === new Date(endofDay.setHours(0, 0, 0, 0)).toDateString()
     )[0];
     if (todaysSummary) {
-      return;
+      //return;
     }
 
     let date =
       endofDay.getFullYear() +
-      "-" +
+      '-' +
       (endofDay.getMonth() + 1) +
-      "-" +
+      '-' +
       endofDay.getDate();
-    console.log("Producing summary for " + date);
+    console.log(getLogDate() + 'Producing summary for ' + date);
 
     let todaysStatements = (await Statement.find()).filter(
       st =>
@@ -68,7 +65,7 @@ calculateTodaysSummary = async () => {
         st.data.statementItem.time * 1000 > start &&
         st.data.statementItem.amount < 0
     );
-    console.log("Today was made " + todaysStatements.length + " operations");
+    console.log(getLogDate() + 'Today was made ' + todaysStatements.length + ' operations');
 
     const spend = todaysStatements.reduce(function(accumulator, item) {
       return accumulator + item.data.statementItem.amount;
@@ -80,75 +77,80 @@ calculateTodaysSummary = async () => {
           (-1 * item.data.statementItem.amount) / 100
         ) +
           getHoursAndMinutes(item.data.statementItem.time) +
-          item.data.statementItem.description.replace(/(\r\n|\n|\r)/gm, "") +
-          " : " +
+          item.data.statementItem.description.replace(/(\r\n|\n|\r)/gm, '') +
+          ' : ' +
           (-1 * item.data.statementItem.amount) / 100}`
       );
-    }, "");
-    console.log("with total amount of  " + (-1 * spend) / 100);
-    await addEvents(endofDay, (-1 * spend) / 100, details);
+    }, '');
+    console.log('with total amount of  ' + (-1 * spend) / 100);
+    try {
+      await addEvents(endofDay, (-1 * spend) / 100, details);
+    } catch (ex)
+    {
+      console.log(getLogDate() + 'Failed to save event: ' + JSON.stringify(ex));
+    }
   }
 };
 
 getTransactionAmountEmojii = amount => {
-  if (amount < 500) return "✔️";
-  if (amount < 1000) return "⚠️";
-  if (amount > 1000) return "❗️";
+  if (amount < 500) return '✔️';
+  if (amount < 1000) return '⚠️';
+  if (amount > 1000) return '❗️';
 };
 
 getHoursAndMinutes = timeStampt => {
   let date = new Date(timeStampt * 1000);
-  let hours = date.getHours() > 9 ? date.getHours() : "0" + date.getHours();
+  let hours = date.getHours() > 9 ? date.getHours() : '0' + date.getHours();
   let minutes =
-    date.getMinutes() > 9 ? date.getMinutes() : "0" + date.getMinutes();
-  return hours + ":" + minutes + " ";
+    date.getMinutes() > 9 ? date.getMinutes() : '0' + date.getMinutes();
+  return hours + ':' + minutes + ' ';
 };
 
 getTotalAmountEmoji = amount => {
-  if (amount < 300) return "⚪⚪⚪";
-  if (amount < 500) return "🔵⚪⚪";
-  if (amount < 800) return "🔵🔵⚪";
-  if (amount < 1000) return "🔵🔵🔵";
-  if (amount < 3000) return "🔴⚪⚪";
-  if (amount < 5000) return "🔴🔴⚪";
-  return "🔴🔴🔴";
+  if (amount < 300) return '⚪⚪⚪';
+  if (amount < 500) return '🔵⚪⚪';
+  if (amount < 800) return '🔵🔵⚪';
+  if (amount < 1000) return '🔵🔵🔵';
+  if (amount < 3000) return '🔴⚪⚪';
+  if (amount < 5000) return '🔴🔴⚪';
+  return '🔴🔴🔴';
 };
 
 addEvents = async (date, amount, details) => {
   let auth = await authorizeAsync();
 
-  const calendar = google.calendar({ version: "v3", auth });
+  const calendar = google.calendar({ version: 'v3', auth });
 
   let dateParsed =
-    date.getFullYear() + "-" + (date.getMonth() + 1) + "-" + date.getDate();
+    date.getFullYear() + '-' + (date.getMonth() + 1) + '-' + date.getDate();
 
   let event = {
     summary: getTotalAmountEmoji(amount) + ` 💶${amount}`,
     description: details,
     start: {
       date: dateParsed,
-      timeZone: "Europe/Kiev"
+      timeZone: 'Europe/Kiev'
     },
     end: {
       date: dateParsed,
-      timeZone: "Europe/Kiev"
+      timeZone: 'Europe/Kiev'
     }
   };
 
   calendar.events.insert(
     {
       auth: auth,
-      calendarId: "dmhnmbi4hpshhn2o8op3te2roo@group.calendar.google.com",
+      calendarId: 'dmhnmbi4hpshhn2o8op3te2roo@group.calendar.google.com',
       resource: event
     },
     function(err, event) {
       if (err) {
         console.log(
-          "There was an error contacting the Calendar service: " + err
+          getLogDate() + 'There was an error contacting the Calendar service: ' + err
         );
         return;
       }
-      console.log("Event created: %s", event.htmlLink);
+      console.log(getLogDate() + 'Event created: %s', event.htmlLink);
       let newEvent = new Calendar({
         date: new Date(date.setHours(0, 0, 0, 0)).toDateString()
       });
@@ -174,7 +176,7 @@ function authorize(credentials, callback) {
 
 authorizeAsync = async () => {
   const credentials = JSON.parse(
-    await readFileAsync("src/calendar/credentials.json")
+    await readFileAsync('src/calendar/credentials.json')
   );
   const { client_secret, client_id, redirect_uris } = credentials.installed;
   const oAuth2Client = new google.auth.OAuth2(
@@ -190,22 +192,22 @@ authorizeAsync = async () => {
 
 function getAccessToken(oAuth2Client, callback) {
   const authUrl = oAuth2Client.generateAuthUrl({
-    access_type: "offline",
+    access_type: 'offline',
     scope: SCOPES
   });
-  console.log("Authorize this app by visiting this url:", authUrl);
+  console.log('Authorize this app by visiting this url:', authUrl);
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
   });
-  rl.question("Enter the code from that page here: ", code => {
+  rl.question('Enter the code from that page here: ', code => {
     rl.close();
     oAuth2Client.getToken(code, (err, token) => {
-      if (err) return console.error("Error retrieving access token", err);
+      if (err) return console.error(getLogDate() + 'Error retrieving access token', err);
       oAuth2Client.setCredentials(token);
       fs.writeFile(TOKEN_PATH, JSON.stringify(token), err => {
         if (err) return console.error(err);
-        console.log("Token stored to", TOKEN_PATH);
+        console.log('Token stored to', TOKEN_PATH);
       });
       callback(oAuth2Client);
     });
@@ -213,26 +215,26 @@ function getAccessToken(oAuth2Client, callback) {
 }
 
 function listEvents(auth) {
-  const calendar = google.calendar({ version: "v3", auth });
+  const calendar = google.calendar({ version: 'v3', auth });
   calendar.events.list(
     {
-      calendarId: "dmhnmbi4hpshhn2o8op3te2roo@group.calendar.google.com",
+      calendarId: 'dmhnmbi4hpshhn2o8op3te2roo@group.calendar.google.com',
       timeMin: new Date().toISOString(),
       maxResults: 10,
       singleEvents: true,
-      orderBy: "startTime"
+      orderBy: 'startTime'
     },
     (err, res) => {
-      if (err) return console.log("The API returned an error: " + err);
+      if (err) return console.log(getLogDate() + 'The API returned an error: ' + err);
       const events = res.data.items;
       if (events.length) {
-        console.log("Upcoming 10 events:");
+        console.log('Upcoming 10 events:');
         events.map((event, i) => {
           const start = event.start.dateTime || event.start.date;
           console.log(`${start} - ${event.summary}`);
         });
       } else {
-        console.log("Calendar api initialized");
+        console.log(getLogDate() + 'Calendar api initialized');
       }
     }
   );
