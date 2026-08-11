@@ -99,7 +99,7 @@ for _ in $(seq 1 90); do
     break
   fi
   container_state="$(docker inspect --format '{{.State.Status}}' "${app_name}" 2>/dev/null || true)"
-  if [[ ${container_state} == exited || ${container_state} == dead ]]; then
+  if [[ ${container_state} == exited || ${container_state} == dead || ${container_state} == restarting ]]; then
     break
   fi
   sleep 2
