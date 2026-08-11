@@ -49,3 +49,5 @@ Production health currently reports `calendar: false`. A Google API key cannot w
 - The synthetic row was then changed to `Transfers`, so it is excluded from expense summaries.
 - A second deployment preserved the SQLite ledger and replaced the container with revision `66ebdb2b938f91c13ba2589036b5aa9fc48a4b10`.
 - A controlled replacement that exited immediately was rejected; the wrapper restored the exact previous healthy revision and public health in four seconds.
+
+The complete requirement-to-check mapping, current production observations, integration boundaries, and external blockers are recorded in [`../docs/production-acceptance-2026-08-11.md`](../docs/production-acceptance-2026-08-11.md).

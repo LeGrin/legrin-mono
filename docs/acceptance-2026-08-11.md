@@ -1,6 +1,6 @@
 # Acceptance evidence, 2026-08-11
 
-This pass exercised the compiled production service through real HTTP sockets and a disposable SQLite database. The local service connected through an SSH tunnel to the live KITT Hermes Agent API on the VPS. It did not deploy or modify anything on the VPS.
+This pass exercised the compiled service through real HTTP sockets and a disposable SQLite database, with live KITT inference through an SSH tunnel. It is the detailed pre-deployment workflow acceptance. The later deployed whole-result pass is recorded in [`production-acceptance-2026-08-11.md`](production-acceptance-2026-08-11.md).
 
 ## Requirement traceability
 
@@ -20,12 +20,12 @@ This pass exercised the compiled production service through real HTTP sockets an
 | Model output must not invent facts about spending | First live pass exposed an unsupported external claim in Hermes prose; implementation was changed so Hermes may classify but all user-visible text and insights are deterministically rendered from ledger data | Follow-up live pass produced only grounded amounts, category totals, and merchant frequency. A regression test supplies deliberately invented Hermes prose and verifies it is discarded. |
 | Automated regression safety | Ran `npm run check` after the fix | Typecheck passed; 16 tests across four files passed. |
 
-## Externally blocked acceptance paths
+## Status of the originally blocked paths
 
-- **Google Calendar write:** not attempted. The supplied API key is saved only in ignored local configuration, but an API key cannot write to a private Calendar. Acceptance requires a service-account JSON or OAuth grant, Calendar API enabled for that project, and edit access to the target calendar.
-- **Telegram delivery and file upload in the live bot:** not attempted. Sending a real message is an external side effect, and the user explicitly deferred installing the service and KITT skill on Hetzner.
-- **Real Monobank provider delivery:** not attempted because there is intentionally no public deployed HTTPS endpoint yet. The service-side handshake and POST path were exercised over a real local socket.
+- **Google Calendar write:** still blocked. The supplied API key is saved only in ignored local configuration, but an API key cannot write to a private Calendar. Acceptance requires a service-account JSON or OAuth grant, Calendar API enabled for that project, and edit access to the target calendar.
+- **Telegram delivery and KITT installation:** completed in the later production pass. The KITT skill is installed, KITT can call the protected finance API over the Docker network, and the synthetic probe has Telegram delivery metadata.
+- **Real Monobank provider delivery:** the public HTTPS callback and registration script are deployed. Registration is blocked only by the pending Monobank token.
 - **Revolut Business provider delivery:** exact raw-body HMAC, timestamp tolerance, duplicate handling, and out-of-order state protection are covered by automated tests, but no Revolut Business webhook was registered for this personal-finance acceptance pass.
-- **Full VPS workflow:** intentionally deferred by user request. The test connected read-only to the existing live KITT API boundary and made inference requests, but did not change the VPS deployment.
+- **Full VPS workflow:** completed in the later production pass, including isolated deployment, public routing, persistence, KITT loopback, Telegram delivery, and real rollback.
 
-The local implementation therefore has representative acceptance evidence for ingestion, durable processing, live KITT analysis, clarification, correction, CSV deduplication, reports, and Calendar payload generation. Final outcome acceptance remains blocked on Calendar credentials and the separately authorized Hetzner/Telegram deployment.
+Together with the later production pass, the implementation has acceptance evidence for ingestion, durable processing, live KITT analysis, clarification, correction, CSV deduplication, reports, Telegram delivery, persistence, CI/CD, rollback, and Calendar payload generation. Final third-party outcome acceptance remains blocked only on a Calendar write credential and real provider credentials/capabilities.
