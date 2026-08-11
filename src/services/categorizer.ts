@@ -149,6 +149,39 @@ function fallbackAnalysis(
   };
 }
 
+function trustedHermesAnalysis(
+  transaction: StoredTransaction,
+  initial: InitialCategory,
+  hermes: TransactionAnalysis,
+  summary: MonthSummaryRow[],
+  stats: MerchantStats,
+  confidenceThreshold: number,
+): TransactionAnalysis {
+  // Merchant/description are untrusted bank data, and model-generated prose can
+  // still invent facts even when the prompt forbids it. Keep Hermes useful for
+  // classification, but construct every user-visible sentence solely from
+  // ledger values and deterministic merchant statistics.
+  if (initial.category && !initial.needsReview && initial.confidence >= confidenceThreshold) {
+    return fallbackAnalysis(transaction, initial, summary, stats);
+  }
+
+  const acceptedCategory = !hermes.needs_clarification
+    && hermes.category
+    && hermes.confidence >= confidenceThreshold
+    ? hermes.category
+    : undefined;
+  return fallbackAnalysis(
+    transaction,
+    {
+      ...(acceptedCategory ? { category: acceptedCategory } : {}),
+      confidence: acceptedCategory ? hermes.confidence : initial.confidence,
+      needsReview: !acceptedCategory,
+    },
+    summary,
+    stats,
+  );
+}
+
 export class TransactionAnalyzer {
   constructor(
     private readonly config: AppConfig,
@@ -189,7 +222,15 @@ export class TransactionAnalyzer {
     const body = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     const content = body.choices?.[0]?.message?.content;
     if (!content) throw new Error('Hermes Agent returned no message content');
-    return analysisSchema.parse(extractJsonObject(content));
+    const hermes = analysisSchema.parse(extractJsonObject(content));
+    return trustedHermesAnalysis(
+      transaction,
+      initial,
+      hermes,
+      summary,
+      stats,
+      this.config.CATEGORY_CONFIDENCE_THRESHOLD,
+    );
   }
 
   private buildPrompt(

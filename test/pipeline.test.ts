@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FinanceDatabase } from '../src/db/database.js';
 import { renderDailyEvent } from '../src/services/calendar.js';
@@ -9,6 +9,7 @@ import { testConfig } from './helpers.js';
 
 const databases: FinanceDatabase[] = [];
 afterEach(() => {
+  vi.unstubAllGlobals();
   while (databases.length) databases.pop()!.close();
 });
 
@@ -175,5 +176,57 @@ describe('durable transaction pipeline', () => {
     expect(rendered.summary).toContain('150,00');
     expect(rendered.description).toContain('[mono] Mlinar');
     expect(rendered.end.date).toBe('2026-08-12');
+  });
+
+  it('uses live Hermes only for classification and discards ungrounded model prose', async () => {
+    const config = testConfig({
+      HERMES_AGENT_URL: 'http://hermes.test',
+      HERMES_AGENT_KEY: 'hermes-test-key',
+    });
+    const database = createDatabase();
+    database.upsertTransaction({
+      id: 'monobank:a:hermes-safe-1',
+      source: 'monobank',
+      sourceTransactionId: 'hermes-safe-1',
+      accountId: 'a',
+      occurredAt: '2026-08-11T08:00:00.000Z',
+      updatedAt: '2026-08-11T08:00:00.000Z',
+      localDate: '2026-08-11',
+      localMonth: '2026-08',
+      description: 'MLINAR CENTAR',
+      merchant: 'Mlinar',
+      merchantKey: 'MLINAR',
+      mcc: 5812,
+      amountMinor: -850,
+      amountExponent: 2,
+      currency: 'EUR',
+      status: 'completed',
+      kind: 'expense',
+      needsReview: true,
+      raw: {},
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            category: 'Shopping',
+            confidence: 0.99,
+            needs_clarification: false,
+            clarification_question: null,
+            user_message: 'Invented city and unsupported personal claim.',
+            insight: 'Invented external merchant fact.',
+          }),
+        },
+      }],
+    }), { status: 200 })));
+
+    const analysis = await new TransactionAnalyzer(config, database).analyze(
+      database.getTransaction('monobank:a:hermes-safe-1')!,
+    );
+
+    expect(analysis.category).toBe('Restaurants & coffee');
+    expect(analysis.user_message).toContain('Зафіксував 8,50');
+    expect(analysis.user_message).not.toContain('Invented');
+    expect(analysis.insight).toBeNull();
   });
 });

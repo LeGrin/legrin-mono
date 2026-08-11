@@ -29,10 +29,13 @@ flowchart LR
 - Один all-day Google Calendar event на день, який оновлюється після кожного руху коштів.
 - Daily budget signals `⚪ 🟢 🟡 🔴`, список рухів та місячні підсумки категорій у Calendar.
 - Категоризація через rules, MCC, історію та KITT Hermes Agent `/v1/chat/completions`.
+- Hermes використовується для класифікації, але user-visible повідомлення та інсайти будуються лише з перевірених ledger totals і merchant frequency, щоб модель не вигадувала факти.
 - Якщо confidence низький, Telegram повідомлення містить коротке питання й transaction ID.
 - Персональні інсайти за частотою merchant, наприклад повторні покупки у Mlinar.
 - Protected API для KITT: unresolved transactions, ручна категоризація, category memory та monthly summary.
 - Docker Compose, Caddy example, Monobank registration script і готовий KITT `finance-tracker` skill.
+
+Requirement-by-requirement local and live-KITT acceptance evidence: [`docs/acceptance-2026-08-11.md`](docs/acceptance-2026-08-11.md).
 
 ## Важливе обмеження Revolut
 
