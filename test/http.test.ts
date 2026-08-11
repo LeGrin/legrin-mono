@@ -52,6 +52,14 @@ TRANSFER,Current,2026-08-11 09:15:00,2026-08-11 09:16:00,Rent,-700.00,0.50,EUR,C
 
     expect((await app.inject({ method: 'GET', url: '/webhooks/monobank/wrong-secret-value' })).statusCode).toBe(404);
     expect((await app.inject({ method: 'GET', url: `/webhooks/monobank/${config.WEBHOOK_SHARED_SECRET}` })).statusCode).toBe(200);
+    const malformed = await app.inject({
+      method: 'POST',
+      url: `/webhooks/monobank/${config.WEBHOOK_SHARED_SECRET}`,
+      headers: { 'content-type': 'application/json' },
+      payload: '',
+    });
+    expect(malformed.statusCode).toBe(400);
+    expect(malformed.json()).toEqual({ error: 'invalid_request' });
 
     const payload = {
       type: 'StatementItem',

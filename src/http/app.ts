@@ -183,6 +183,15 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     if (error instanceof z.ZodError) {
       return reply.code(400).send({ error: 'invalid_payload', issues: error.issues });
     }
+    const statusCode = typeof error === 'object'
+      && error !== null
+      && 'statusCode' in error
+      && typeof error.statusCode === 'number'
+      ? error.statusCode
+      : undefined;
+    if (statusCode !== undefined && statusCode >= 400 && statusCode < 500) {
+      return reply.code(statusCode).send({ error: 'invalid_request' });
+    }
     app.log.error({ err: error }, 'request failed');
     return reply.code(500).send({ error: 'internal_error' });
   });

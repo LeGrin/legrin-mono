@@ -47,3 +47,14 @@ This is the consolidated whole-result acceptance pass for the finance pipeline a
 ## Acceptance boundary
 
 The deployed workflow is accepted for CI/CD, public ingestion, durable processing, KITT analysis, Telegram delivery, protected reporting, correction, Budget synchronization, persistence, and rollback. Monobank webhook registration is complete. End-to-end acceptance with a real Google Calendar write remains blocked by the Calendar credential, while Personal Revolut automation remains constrained by the absence of a Personal webhook product.
+
+## Live acceptance follow-up
+
+A later production recheck exercised the public interfaces again after Monobank registration:
+
+- Public health returned `200` with Hermes, Telegram, and Budget enabled; Calendar remained explicitly disabled.
+- The ledger contained four Monobank webhook deliveries: the earlier synthetic probe and three non-synthetic provider deliveries received after registration. Every webhook was fully processed, every transaction had KITT analysis and Telegram delivery metadata, and all four Budget sync jobs were complete. The three real rows were provider holds (`pending`) and the synthetic probe was completed; these are transaction states, not stuck queue items.
+- Replaying the latest stored provider payload through public HTTPS returned `200` without increasing webhook or transaction counts, confirming production idempotency.
+- Unauthenticated reporting returned `401`, an invalid webhook secret returned `404`, the configured handshake returned `200`, and authenticated transaction and month-summary calls returned `200`.
+- KITT called the finance month-summary endpoint over the private container network and received `200`. Its authenticated Budget health boundary also returned `200`; the public Budget internal API remained unavailable.
+- The recheck exposed one defect: an empty JSON webhook request returned `500`. The error handler now maps Fastify client parse failures to `400 {"error":"invalid_request"}`, with regression coverage. The full 17-test suite, typecheck, dependency audit, and production Docker build pass with the fix.
