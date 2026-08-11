@@ -37,6 +37,8 @@ flowchart LR
 
 Requirement-by-requirement local and live-KITT acceptance evidence: [`docs/acceptance-2026-08-11.md`](docs/acceptance-2026-08-11.md).
 
+Production CI/CD, live topology, and Monobank activation runbook: [`deploy/CICD.md`](deploy/CICD.md).
+
 ## Важливе обмеження Revolut
 
 Публічні first-party webhooks доступні для **Revolut Business API**. Revolut не надає простого публічного API/webhook для звичайного Personal account.
