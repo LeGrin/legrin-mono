@@ -49,6 +49,8 @@ Requirement-by-requirement local and live-KITT acceptance evidence: [`docs/accep
 
 Не використовуйте browser scraping банкінгу або неофіційне зберігання login/password.
 
+Це рішення повторно перевірено за офіційною документацією Revolut: Business API призначений для Business Account, а production Open Banking потребує TPP-style consent flow і валідний OBIE/eIDAS transport certificate. Деталі та критерії переходу з CSV на автоматичний provider: [`docs/revolut-personal-strategy.md`](docs/revolut-personal-strategy.md).
+
 ## Швидкий локальний запуск
 
 Потрібен Node.js `>=22.13`, рекомендовано Node 24.

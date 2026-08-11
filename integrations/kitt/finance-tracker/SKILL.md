@@ -19,7 +19,7 @@ Required environment variables inside KITT:
 
 ## Trigger recognition
 
-- User uploads a Revolut `.csv` statement in Telegram.
+- User uploads a Revolut `.csv` statement in Telegram, or asks what to do with an Excel/PDF statement.
 - User explains an unknown purchase after a message containing `ID: ...`.
 - User says a category is wrong or asks to recategorize a transaction.
 - User asks about expenses, monthly totals, a merchant, or uncategorized transactions.
@@ -28,7 +28,7 @@ Required environment variables inside KITT:
 
 CSV is the preferred Personal Revolut MVP. Do not ask the model to reinterpret, rewrite, or manually extract transaction rows. Pass the original downloaded CSV bytes to the deterministic finance importer.
 
-1. Confirm the attachment is CSV. If it is PDF, ask the user to export CSV from Revolut because CSV is safer and idempotent.
+1. Confirm the attachment is CSV. Revolut's available formats vary by region and statement flow. If it is Excel or PDF, ask the user to export a product statement as CSV because the current importer is deterministic only for CSV.
 2. Use the local attachment path supplied by the Telegram/Hermes runtime.
 3. Upload it unchanged:
 
