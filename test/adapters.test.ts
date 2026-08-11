@@ -19,7 +19,8 @@ describe('bank adapters', () => {
           description: 'Mlinar Centar',
           mcc: 5812,
           hold: true,
-          amount: -850,
+          amount: -44_430,
+          operationAmount: -850,
           currencyCode: 978,
         },
       },
@@ -41,6 +42,31 @@ describe('bank adapters', () => {
       merchantKey: 'MLINAR CENTAR',
     });
     expect(monobankDedupeKey(pending)).not.toBe(monobankDedupeKey(completed));
+  });
+
+  it('pairs Monobank operationAmount with currencyCode instead of mislabelling the account debit', () => {
+    const payload = monobankWebhookSchema.parse({
+      type: 'StatementItem',
+      data: {
+        account: 'mono-uah-account',
+        statementItem: {
+          id: 'cross-currency-1',
+          time: 1_786_436_400,
+          description: 'Mlinar',
+          hold: true,
+          amount: -14_107,
+          operationAmount: -270,
+          currencyCode: 978,
+        },
+      },
+    });
+
+    expect(normalizeMonobank(payload, 'Europe/Zagreb')).toMatchObject({
+      amountMinor: -270,
+      currency: 'EUR',
+      status: 'pending',
+      kind: 'expense',
+    });
   });
 
   it('normalizes a personal Revolut adapter transaction', () => {

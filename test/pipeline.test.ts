@@ -174,7 +174,7 @@ describe('durable transaction pipeline', () => {
 
     expect(messages).toHaveLength(2);
     expect(messages[1]).toContain('Платіж підтверджено: 8,50');
-    expect(messages[1]).toContain('Цього місяця в категорії вже 18,50');
+    expect(messages[1]).toContain('Всього у цій категорії за місяць: 18,50');
     expect(messages[1]).toContain('Calendar sync ще не ввімкнено');
     expect(database.getMonthSummary('2026-08')).toEqual([
       expect.objectContaining({ category: 'Restaurants & coffee', amountMinor: 1850, count: 2 }),
@@ -230,7 +230,8 @@ describe('durable transaction pipeline', () => {
       database.getTransaction('monobank:mono-account:current')!,
     );
 
-    expect(analysis.user_message).toContain('Цього місяця в категорії вже 18,50');
+    expect(analysis.user_message).toMatch(/Покупка: 8,50\sEUR/u);
+    expect(analysis.user_message).toContain('Всього у цій категорії за місяць: 18,50');
   });
 
   it('remembers a manual merchant correction for later transactions', () => {
@@ -301,6 +302,56 @@ describe('durable transaction pipeline', () => {
     expect(rendered.summary).toContain('150,00');
     expect(rendered.description).toContain('[mono] Mlinar');
     expect(rendered.end.date).toBe('2026-08-12');
+  });
+
+  it('keeps synthetic acceptance probes out of Calendar and daily report content', () => {
+    const config = testConfig();
+    const database = createDatabase();
+    const base = {
+      source: 'monobank' as const,
+      accountId: 'a',
+      amountExponent: 2,
+      currency: 'EUR',
+      status: 'completed' as const,
+      needsReview: false,
+      raw: {},
+      occurredAt: '2026-08-11T08:00:00.000Z',
+      updatedAt: '2026-08-11T08:00:00.000Z',
+      localDate: '2026-08-11',
+      localMonth: '2026-08',
+    };
+    database.upsertTransaction({
+      ...base,
+      id: 'monobank:a:synthetic',
+      sourceTransactionId: 'synthetic',
+      description: 'SYNTHETIC PROBE',
+      merchant: 'SYNTHETIC PROBE',
+      merchantKey: 'SYNTHETIC PROBE',
+      amountMinor: -1,
+      kind: 'transfer',
+      category: 'Transfers',
+    });
+    database.upsertTransaction({
+      ...base,
+      id: 'monobank:a:real',
+      sourceTransactionId: 'real',
+      description: 'Mlinar',
+      merchant: 'Mlinar',
+      merchantKey: 'MLINAR',
+      amountMinor: -270,
+      kind: 'expense',
+      category: 'Restaurants & coffee',
+    });
+
+    const rendered = renderDailyEvent(
+      '2026-08-11',
+      database.listTransactions({ localDate: '2026-08-11' }),
+      database.getMonthSummary('2026-08'),
+      config,
+    );
+    expect(rendered.description).toContain('Mlinar');
+    expect(rendered.description).not.toContain('SYNTHETIC PROBE');
+    expect(rendered.summary).toMatch(/2,70\sEUR · 1 підтверджених витрат/u);
   });
 
   it('syncs the daily finance event through the Google OAuth sidecar', async () => {
@@ -399,7 +450,7 @@ describe('durable transaction pipeline', () => {
     );
 
     expect(analysis.category).toBe('Restaurants & coffee');
-    expect(analysis.user_message).toContain('Зафіксував 8,50');
+    expect(analysis.user_message).toContain('Покупка: 8,50');
     expect(analysis.user_message).not.toContain('Invented');
     expect(analysis.insight).toBeNull();
   });

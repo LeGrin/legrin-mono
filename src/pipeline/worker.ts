@@ -149,7 +149,7 @@ export class PipelineWorker {
           .join(' + ')
         : '';
       const categoryText = transaction.category ? ` → ${transaction.category}` : '';
-      const totalText = totals ? ` Цього місяця в категорії вже ${totals}.` : '';
+      const totalText = totals ? ` Всього у цій категорії за місяць: ${totals}.` : '';
       await this.telegram.send(`✅ Платіж підтверджено: ${amount} у ${transaction.merchant}${categoryText}.${totalText} ${syncText}`);
       return;
     }

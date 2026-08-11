@@ -77,12 +77,17 @@ export function normalizeMonobank(payload: MonobankWebhook, timeZone: string): N
     merchant,
     merchantKey: merchantKey(merchant),
     ...(item.mcc !== undefined ? { mcc: item.mcc } : {}),
-    amountMinor: item.amount,
+    // Monobank's `amount` is the debit in the account currency, while
+    // `operationAmount` is the actual purchase amount in `currencyCode`.
+    // Calendar and user notifications describe the purchase, so the two
+    // fields must be paired instead of labelling an account-currency debit as
+    // EUR (for example, 141.07 UAH for a 2.70 EUR Mlinar purchase).
+    amountMinor: item.operationAmount ?? item.amount,
     amountExponent: 2,
     currency,
     status: item.hold ? 'pending' : 'completed',
-    kind: item.amount < 0 ? 'expense' : 'income',
-    needsReview: item.amount < 0,
+    kind: (item.operationAmount ?? item.amount) < 0 ? 'expense' : 'income',
+    needsReview: (item.operationAmount ?? item.amount) < 0,
     raw: payload,
   };
 }

@@ -178,7 +178,7 @@ function fallbackAnalysis(
     confidence: initial.confidence,
     needs_clarification: false,
     clarification_question: null,
-    user_message: `Зафіксував ${amount} у ${transaction.merchant} → ${category}. Цього місяця в категорії вже ${totalText}.${insight ? ` ${insight}` : ''}`,
+    user_message: `Покупка: ${amount} у ${transaction.merchant} → ${category}. Всього у цій категорії за місяць: ${totalText}.${insight ? ` ${insight}` : ''}`,
     insight,
   };
 }

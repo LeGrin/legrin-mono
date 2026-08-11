@@ -1,10 +1,10 @@
 ---
 name: finance-tracker
-description: Ingest Monobank and Revolut bank statements, track transactions, and read or update the LeGrin Budget app through its private Finance and Budget APIs. Use for budget questions, statement uploads, missing data, categories, monthly spending, and finance UI consistency.
+description: Ingest Monobank and Revolut bank statements, track transactions, manage debts and planning, and read or update the LeGrin Budget app through its private Finance and Budget APIs. Use for budget questions, debts, statement uploads, daily reports, missing data, categories, monthly spending, and finance UI consistency.
 version: 1.0.0
 metadata:
   hermes:
-    tags: [finance, monobank, revolut, statement, csv, expenses, budget, budget-app, виписка, витрати, фінанси, категорія]
+    tags: [finance, monobank, revolut, statement, csv, expenses, budget, budget-app, debts, daily-report, виписка, витрати, фінанси, категорія, борги]
     related_skills: []
 ---
 
@@ -26,6 +26,8 @@ Required environment variables inside KITT:
 - User says a category is wrong or asks to recategorize a transaction.
 - User asks about expenses, monthly totals, a merchant, or uncategorized transactions.
 - User asks about Budget UI values, expected income/outgoings, targets, liquidity, envelopes, notes, or missing data.
+- User asks about debts, credit balances, minimum payments, payment dates, or wants a debt value corrected.
+- User asks for today's spending or the same daily report that appears in Calendar.
 - User asks whether KITT knows the Budget app or its endpoints. Do not answer from memory; probe the live Budget health endpoint first.
 
 ## Import a Revolut statement from Telegram
@@ -91,7 +93,19 @@ curl -fsS \
   "$BUDGET_API_URL/internal/v1/health"
 ```
 
-The internal base is `$BUDGET_API_URL/internal/v1`. Supported read endpoints are `/health`, `/dashboard`, `/transactions`, `/transactions/:id`, `/missing-data`, `/summary/month`, and `/budget-state`. Supported typed writes are transaction annotation, category command, budget-state patch, expected income, and manual entry. Do not invent other endpoints.
+The internal base is `$BUDGET_API_URL/internal/v1`. Discover the live contract instead of relying only on memory:
+
+```bash
+curl -fsS \
+  -H "Authorization: Bearer $BUDGET_API_TOKEN" \
+  "$BUDGET_API_URL/internal/v1/capabilities"
+
+curl -fsS \
+  -H "Authorization: Bearer $BUDGET_API_TOKEN" \
+  "$BUDGET_API_URL/internal/v1/openapi.json"
+```
+
+Supported reads include dashboard, transactions, monthly summary, Calendar-identical daily report, debts, missing data, and Budget state. Typed writes include transaction annotation, category command, debt upsert, Budget-state patch, expected income, and manual entry. Do not invent endpoints that are absent from the live OpenAPI document.
 
 Read the same dashboard model used by the UI:
 
@@ -130,6 +144,48 @@ curl -fsS \
   -H "Authorization: Bearer $BUDGET_API_TOKEN" \
   "$BUDGET_API_URL/internal/v1/budget-state"
 ```
+
+## Read or update debts
+
+Budget owns user-confirmed debt balances, due dates, minimum payments, notes, and overrides. Statement-derived account balances and schedules remain visible beside the managed records.
+
+Always read the effective debt registry first:
+
+```bash
+curl -fsS \
+  -H "Authorization: Bearer $BUDGET_API_TOKEN" \
+  "$BUDGET_API_URL/internal/v1/debts"
+```
+
+Only update a value the user explicitly confirmed. Keep the existing debt ID. Use an idempotency key and then re-read the registry to report the persisted result:
+
+```bash
+curl -fsS -X PATCH \
+  -H "Authorization: Bearer $BUDGET_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "X-Budget-Actor: kitt" \
+  -H "Idempotency-Key: kitt-debt-DEBT_ID-CONVERSATION_ID" \
+  "$BUDGET_API_URL/internal/v1/debts/DEBT_ID" \
+  --data '{"currentBalance":1800,"currency":"EUR","minimumPayment":100,"dueDay":18,"note":"User confirmed"}'
+```
+
+Allowed debt fields are documented in `/openapi.json`. Never infer a balance, payment, due date, interest, or creditor from casual language. Ask one short clarification when the target debt or unit is ambiguous.
+
+## Daily report shared with Calendar and Budget UI
+
+Finance renders one deterministic report used by Calendar. Read the same report through either service:
+
+```bash
+curl -fsS \
+  -H "Authorization: Bearer $FINANCE_API_TOKEN" \
+  "$FINANCE_API_URL/api/reports/daily?date=YYYY-MM-DD"
+
+curl -fsS \
+  -H "Authorization: Bearer $BUDGET_API_TOKEN" \
+  "$BUDGET_API_URL/internal/v1/reports/daily?date=YYYY-MM-DD"
+```
+
+The first amount in a transaction notification is the individual purchase. A separately labelled category total is the completed month-to-date total. Pending holds are listed but do not count as completed spend.
 
 Only patch fields the user explicitly discussed. Use an idempotency key and report the persisted value back. Do not make speculative liquidity, debt, income, or target changes.
 

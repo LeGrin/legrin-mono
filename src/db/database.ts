@@ -2,7 +2,13 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 
-import type { Category, NormalizedTransaction, StoredTransaction, TransactionStatus } from '../domain/transaction.js';
+import type {
+  Category,
+  NormalizedTransaction,
+  StoredTransaction,
+  TransactionSource,
+  TransactionStatus,
+} from '../domain/transaction.js';
 import { SCHEMA } from './schema.js';
 
 export interface QueueItem {
@@ -211,6 +217,8 @@ export class FinanceDatabase {
 
     const materiallyChanged = !previous
       || previous.amountMinor !== transaction.amountMinor
+      || previous.amountExponent !== transaction.amountExponent
+      || previous.currency !== transaction.currency
       || previous.status !== transaction.status
       || previous.localDate !== transaction.localDate
       || previous.description !== transaction.description;
@@ -301,6 +309,16 @@ export class FinanceDatabase {
       ORDER BY occurred_at DESC
       LIMIT ?
     `).all(...params, limit) as Row[];
+    return rows.map((row) => this.mapTransaction(row));
+  }
+
+  listTransactionsBySource(source: TransactionSource, limit = 10_000): StoredTransaction[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM transactions
+      WHERE source = ?
+      ORDER BY occurred_at DESC
+      LIMIT ?
+    `).all(source, Math.min(Math.max(limit, 1), 10_000)) as Row[];
     return rows.map((row) => this.mapTransaction(row));
   }
 

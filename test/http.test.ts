@@ -178,6 +178,99 @@ TRANSFER,Current,2026-08-11 09:15:00,2026-08-11 09:16:00,Rent,-700.00,0.50,EUR,C
         { kind: 'calendar_sync', aggregate_key: '2026-08-11', payload_json: '{"localDate":"2026-08-11"}' },
       ]);
     expect(tick).toHaveBeenCalledOnce();
+
+    expect((await app.inject({ method: 'GET', url: '/api/reports/daily?date=2026-08-11' })).statusCode).toBe(401);
+    const report = await app.inject({
+      method: 'GET',
+      url: '/api/reports/daily?date=2026-08-11',
+      headers: { authorization: `Bearer ${config.INTERNAL_API_TOKEN}` },
+    });
+    expect(report.statusCode).toBe(200);
+    expect(report.json()).toMatchObject({
+      date: '2026-08-11',
+      transactionCount: 2,
+      statuses: { completed: 2 },
+      start: { date: '2026-08-11' },
+      end: { date: '2026-08-12' },
+    });
+    expect(report.json().summary).toMatch(/10,00\sEUR · 2 підтверджених витрат/u);
+    expect(report.json().description).toContain('Рухи коштів за 2026-08-11');
+    await app.close();
+  });
+
+  it('previews and applies Monobank currency reconciliation without replaying notifications', async () => {
+    const config = testConfig();
+    const database = new FinanceDatabase(':memory:');
+    databases.push(database);
+    database.upsertTransaction({
+      id: 'monobank:a:cross-currency',
+      source: 'monobank',
+      sourceTransactionId: 'cross-currency',
+      accountId: 'a',
+      occurredAt: '2026-08-11T12:00:00.000Z',
+      updatedAt: '2026-08-11T12:00:00.000Z',
+      localDate: '2026-08-11',
+      localMonth: '2026-08',
+      description: 'Mlinar',
+      merchant: 'Mlinar',
+      merchantKey: 'MLINAR',
+      amountMinor: -14_107,
+      amountExponent: 2,
+      currency: 'EUR',
+      status: 'pending',
+      kind: 'expense',
+      needsReview: false,
+      raw: {
+        type: 'StatementItem',
+        data: {
+          account: 'a',
+          statementItem: {
+            id: 'cross-currency',
+            time: 1_786_436_400,
+            description: 'Mlinar',
+            hold: true,
+            amount: -14_107,
+            operationAmount: -270,
+            currencyCode: 978,
+          },
+        },
+      },
+    });
+    const tick = vi.fn(async () => undefined);
+    const app = await buildApp({ config, database, worker: { tick } as unknown as PipelineWorker });
+    const auth = { authorization: `Bearer ${config.INTERNAL_API_TOKEN}` };
+
+    expect((await app.inject({ method: 'POST', url: '/api/admin/reconcile/monobank' })).statusCode).toBe(401);
+    const preview = await app.inject({
+      method: 'POST',
+      url: '/api/admin/reconcile/monobank',
+      headers: auth,
+      payload: { dry_run: true },
+    });
+    expect(preview.json()).toMatchObject({
+      dryRun: true,
+      scanned: 1,
+      changed: 1,
+      changes: [{ merchant: 'Mlinar', before: { amountMinor: -14_107 }, after: { amountMinor: -270, currency: 'EUR' } }],
+    });
+    expect(database.getTransaction('monobank:a:cross-currency')?.amountMinor).toBe(-14_107);
+    expect(tick).not.toHaveBeenCalled();
+
+    const applied = await app.inject({
+      method: 'POST',
+      url: '/api/admin/reconcile/monobank',
+      headers: auth,
+      payload: { dry_run: false },
+    });
+    expect(applied.json()).toMatchObject({ dryRun: false, scanned: 1, changed: 1 });
+    expect(database.getTransaction('monobank:a:cross-currency')?.amountMinor).toBe(-270);
+    expect(database.db.prepare("SELECT kind, status FROM outbox ORDER BY kind").all()).toEqual([
+      { kind: 'budget_sync', status: 'pending' },
+      { kind: 'calendar_sync', status: 'pending' },
+    ]);
+    expect(database.db.prepare("SELECT COUNT(*) AS count FROM outbox WHERE kind = 'status_notification'").get())
+      .toMatchObject({ count: 0 });
+    expect(tick).toHaveBeenCalledOnce();
     await app.close();
   });
 });

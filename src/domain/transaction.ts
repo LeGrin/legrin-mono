@@ -63,6 +63,18 @@ export function merchantKey(value: string): string {
     .toLocaleUpperCase('en-US');
 }
 
+export function isSyntheticTransaction(transaction: Pick<NormalizedTransaction, 'merchantKey' | 'raw'>): boolean {
+  if (transaction.merchantKey === 'SYNTHETIC PROBE') return true;
+  if (!transaction.raw || typeof transaction.raw !== 'object') return false;
+  const raw = transaction.raw as Record<string, unknown>;
+  if (raw.synthetic === true) return true;
+  const data = raw.data;
+  if (!data || typeof data !== 'object') return false;
+  const statementItem = (data as Record<string, unknown>).statementItem;
+  return Boolean(statementItem && typeof statementItem === 'object'
+    && (statementItem as Record<string, unknown>).synthetic === true);
+}
+
 export function currencyExponent(currency: string): number {
   if (new Set(['BIF', 'CLP', 'DJF', 'GNF', 'ISK', 'JPY', 'KMF', 'KRW', 'PYG', 'RWF', 'UGX', 'UYI', 'VND', 'VUV', 'XAF', 'XOF', 'XPF']).has(currency)) return 0;
   if (new Set(['BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND']).has(currency)) return 3;

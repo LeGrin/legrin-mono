@@ -236,6 +236,7 @@ Authorization: Bearer INTERNAL_API_TOKEN
 | `POST` | `/api/import/revolut/csv` | Ідемпотентний CSV import Personal Revolut |
 | `PATCH` | `/api/transactions/:id/category` | Категорія та merchant memory |
 | `GET` | `/api/summary/month?month=YYYY-MM` | Місячний summary |
+| `GET` | `/api/reports/daily?date=YYYY-MM-DD` | Той самий deterministic daily report, що синхронізується у Calendar |
 | `POST` | `/api/admin/retry-failed` | Повторити failed inbox/outbox jobs |
 | `POST` | `/api/admin/sync-budget` | Повторно віддзеркалити всі транзакції у Budget app |
 | `POST` | `/api/admin/sync-calendar` | Повторно синхронізувати кожну дату з транзакціями у Calendar |

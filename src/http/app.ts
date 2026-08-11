@@ -3,7 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import rawBody from 'fastify-raw-body';
 import { z } from 'zod';
 
-import { monobankDedupeKey, monobankWebhookSchema } from '../adapters/monobank.js';
+import { monobankDedupeKey, monobankWebhookSchema, normalizeMonobank } from '../adapters/monobank.js';
 import { parseRevolutStatementCsv } from '../adapters/revolut-statement.js';
 import {
   revolutBusinessWebhookSchema,
@@ -14,8 +14,9 @@ import {
 } from '../adapters/revolut.js';
 import type { AppConfig } from '../config.js';
 import type { FinanceDatabase } from '../db/database.js';
-import { CATEGORIES } from '../domain/transaction.js';
+import { CATEGORIES, isSyntheticTransaction } from '../domain/transaction.js';
 import type { PipelineWorker } from '../pipeline/worker.js';
+import { renderDailyEvent } from '../services/calendar.js';
 import { bearerToken, safeSecretEqual } from './security.js';
 
 export interface AppDependencies {
@@ -162,6 +163,61 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     if (!apiGuard(request.headers.authorization)) return reply.code(401).send({ error: 'unauthorized' });
     const query = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }).parse(request.query);
     return { month: query.month, categories: database.getMonthSummary(query.month) };
+  });
+
+  app.get('/api/reports/daily', async (request, reply) => {
+    if (!apiGuard(request.headers.authorization)) return reply.code(401).send({ error: 'unauthorized' });
+    const query = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(request.query);
+    const transactions = database.listTransactions({ localDate: query.date, limit: 500 });
+    const report = renderDailyEvent(
+      query.date,
+      transactions,
+      database.getMonthSummary(query.date.slice(0, 7)),
+      config,
+    );
+    const visibleTransactions = transactions.filter((transaction) => !isSyntheticTransaction(transaction));
+    const statuses = Object.fromEntries(
+      [...new Set(visibleTransactions.map((transaction) => transaction.status))]
+        .map((status) => [status, visibleTransactions.filter((transaction) => transaction.status === status).length]),
+    );
+    return { date: query.date, transactionCount: visibleTransactions.length, statuses, ...report };
+  });
+
+  app.post('/api/admin/reconcile/monobank', async (request, reply) => {
+    if (!apiGuard(request.headers.authorization)) return reply.code(401).send({ error: 'unauthorized' });
+    const body = z.object({ dry_run: z.boolean().default(true) }).default({ dry_run: true }).parse(request.body ?? {});
+    const transactions = database.listTransactionsBySource('monobank');
+    const changes = transactions.flatMap((transaction) => {
+      const normalized = normalizeMonobank(monobankWebhookSchema.parse(transaction.raw), config.TIMEZONE);
+      if (
+        normalized.amountMinor === transaction.amountMinor
+        && normalized.amountExponent === transaction.amountExponent
+        && normalized.currency === transaction.currency
+      ) return [];
+      return [{
+        transaction,
+        normalized,
+        result: {
+          merchant: transaction.merchant,
+          before: { amountMinor: transaction.amountMinor, currency: transaction.currency },
+          after: { amountMinor: normalized.amountMinor, currency: normalized.currency },
+        },
+      }];
+    });
+    if (!body.dry_run) {
+      for (const change of changes) {
+        database.upsertTransaction(change.normalized);
+        database.enqueueOutbox('calendar_sync', change.normalized.localDate, { localDate: change.normalized.localDate }, true);
+        database.enqueueOutbox('budget_sync', change.normalized.id, { transactionId: change.normalized.id }, true);
+      }
+      void worker.tick();
+    }
+    return {
+      dryRun: body.dry_run,
+      scanned: transactions.length,
+      changed: changes.length,
+      changes: changes.map((change) => change.result),
+    };
   });
 
   app.post('/api/admin/retry-failed', async (request, reply) => {

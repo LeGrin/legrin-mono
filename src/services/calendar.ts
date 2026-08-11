@@ -5,7 +5,7 @@ import { google, type calendar_v3 } from 'googleapis';
 import type { AppConfig } from '../config.js';
 import type { FinanceDatabase } from '../db/database.js';
 import { daysInMonth, localDateParts, nextDate } from '../domain/time.js';
-import { money, type StoredTransaction } from '../domain/transaction.js';
+import { isSyntheticTransaction, money, type StoredTransaction } from '../domain/transaction.js';
 
 function transactionEmoji(transaction: StoredTransaction): string {
   if (transaction.status === 'pending') return '⏳';
@@ -60,10 +60,11 @@ export function renderDailyEvent(
   monthSummary: ReturnType<FinanceDatabase['getMonthSummary']>,
   config: Pick<AppConfig, 'TIMEZONE' | 'monthlyBudgets'>,
 ): RenderedCalendarEvent {
-  const expenses = transactions.filter((transaction) =>
+  const visibleTransactions = transactions.filter((transaction) => !isSyntheticTransaction(transaction));
+  const expenses = visibleTransactions.filter((transaction) =>
     transaction.status === 'completed' && transaction.kind === 'expense' && transaction.amountMinor < 0,
   );
-  const pendingExpenses = transactions.filter((transaction) =>
+  const pendingExpenses = visibleTransactions.filter((transaction) =>
     transaction.status === 'pending' && transaction.kind === 'expense' && transaction.amountMinor < 0,
   );
   const expenseTotals = totalByCurrency(expenses);
@@ -72,7 +73,7 @@ export function renderDailyEvent(
     .join(' · ') || 'без витрат';
   const signal = budgetSignal(localDate, expenseTotals, config.monthlyBudgets);
 
-  const lines = [...transactions]
+  const lines = [...visibleTransactions]
     .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt))
     .map((transaction) => {
       const time = localDateParts(transaction.occurredAt, config.TIMEZONE).time;
