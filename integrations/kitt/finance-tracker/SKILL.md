@@ -66,7 +66,7 @@ curl -fsS -X POST \
   --data '{"category":"Restaurants & coffee","remember":true}'
 ```
 
-URL-encode the transaction ID when necessary. After success, fetch the month summary and tell the user that Calendar and reporting were updated.
+URL-encode the transaction ID when necessary. After success, fetch the month summary and service health. Say that reporting and Budget were updated. Only say Calendar was updated when `/health` reports `calendar: true`; otherwise say Calendar synchronization is not enabled yet.
 
 ## Find unresolved transactions
 
@@ -131,6 +131,36 @@ curl -fsS -X PATCH \
   "$BUDGET_API_URL/internal/v1/budget-state" \
   --data '{"liquiditySnapshot":{"cashEur":100}}'
 ```
+
+## Service status and cross-system consistency
+
+Read live service capabilities from Finance health. Never infer Calendar availability from the existence of a calendar job or from old conversation context.
+
+```bash
+curl -fsS "$FINANCE_API_URL/health"
+```
+
+When asked whether Finance and Budget are synchronized, compare the authoritative transaction collections rather than dashboard cards, summaries, missing-data results, or visible table pagination:
+
+```bash
+curl -fsS \
+  -H "Authorization: Bearer $FINANCE_API_TOKEN" \
+  "$FINANCE_API_URL/api/transactions?limit=500"
+
+curl -fsS \
+  -H "Authorization: Bearer $BUDGET_API_TOKEN" \
+  "$BUDGET_API_URL/internal/v1/transactions?limit=500"
+```
+
+Count the full returned arrays and compare transaction IDs internally. Do not expose IDs unless the user needs one for a correction. If counts differ, report the mismatch and run the Finance Budget backfill before claiming synchronization:
+
+```bash
+curl -fsS -X POST \
+  -H "Authorization: Bearer $FINANCE_API_TOKEN" \
+  "$FINANCE_API_URL/api/admin/sync-budget"
+```
+
+Re-read both collections after the worker finishes. A dashboard row count is not a mirror count.
 
 ## Monthly summary
 

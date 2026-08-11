@@ -9,6 +9,7 @@ readonly env_file="${shared_dir}/.env"
 readonly data_dir="${shared_dir}/data"
 readonly secrets_dir="${shared_dir}/secrets"
 readonly rollback_name="${app_name}-rollback"
+readonly kitt_skill_dir='/opt/kingdom_v2/instances/kitt/skills/kitt/finance-tracker'
 
 fail() {
   printf 'deploy_error=%s\n' "$1" >&2
@@ -109,6 +110,17 @@ if [[ ${healthy} != true ]]; then
   docker logs --tail 100 "${app_name}" >&2 || true
   rollback
   fail 'healthcheck_failed_rollback_completed'
+fi
+
+kitt_skill_source="${new_release}/integrations/kitt/finance-tracker/SKILL.md"
+if [[ ! -f ${kitt_skill_source} ]]; then
+  rollback
+  fail 'missing_kitt_finance_skill'
+fi
+if ! install -d -m 0755 "${kitt_skill_dir}" \
+  || ! install -m 0644 "${kitt_skill_source}" "${kitt_skill_dir}/SKILL.md"; then
+  rollback
+  fail 'kitt_skill_deploy_failed'
 fi
 
 docker rm -f "${rollback_name}" >/dev/null 2>&1 || true
