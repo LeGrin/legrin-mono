@@ -453,6 +453,15 @@ export class FinanceDatabase {
     return Number(webhooks) + Number(outbox);
   }
 
+  enqueueBudgetBackfill(): number {
+    const rows = this.db.prepare('SELECT id FROM transactions ORDER BY occurred_at').all() as Row[];
+    for (const row of rows) {
+      const id = String(row.id);
+      this.enqueueOutbox('budget_sync', id, { transactionId: id }, true);
+    }
+    return rows.length;
+  }
+
   private mapTransaction(row: Row): StoredTransaction {
     return {
       id: String(row.id),

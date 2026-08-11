@@ -61,6 +61,7 @@ export class WebhookProcessor {
       }
       for (const transaction of affected) {
         this.database.enqueueOutbox('calendar_sync', transaction.localDate, { localDate: transaction.localDate }, true);
+        this.database.enqueueOutbox('budget_sync', transaction.id, { transactionId: transaction.id }, true);
         if (['declined', 'failed', 'reverted'].includes(transaction.status)) {
           this.database.enqueueOutbox(
             'status_notification',
@@ -81,6 +82,7 @@ export class WebhookProcessor {
       const result = this.database.upsertTransaction(transaction);
       if (result.materiallyChanged) {
         this.database.enqueueOutbox('calendar_sync', transaction.localDate, { localDate: transaction.localDate }, true);
+        this.database.enqueueOutbox('budget_sync', transaction.id, { transactionId: transaction.id }, true);
       }
       const shouldAnalyze = result.created
         && (transaction.kind !== 'transfer' || transaction.id === primaryTransfer?.id);

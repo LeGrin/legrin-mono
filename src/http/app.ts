@@ -52,6 +52,7 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     calendar: config.calendarEnabled,
     hermes: config.hermesEnabled,
     telegram: config.telegramEnabled,
+    budget: config.budgetEnabled,
   }));
 
   app.get<{ Params: { secret: string } }>('/webhooks/monobank/:secret', async (request, reply) => {
@@ -152,6 +153,7 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     const transaction = database.setCategory(request.params.id, body.category, body.remember);
     if (!transaction) return reply.code(404).send({ error: 'not_found' });
     database.enqueueOutbox('calendar_sync', transaction.localDate, { localDate: transaction.localDate }, true);
+    database.enqueueOutbox('budget_sync', transaction.id, { transactionId: transaction.id }, true);
     void worker.tick();
     return transaction;
   });
@@ -167,6 +169,14 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     const retried = database.retryFailed();
     void worker.tick();
     return { retried };
+  });
+
+  app.post('/api/admin/sync-budget', async (request, reply) => {
+    if (!apiGuard(request.headers.authorization)) return reply.code(401).send({ error: 'unauthorized' });
+    if (!config.budgetEnabled) return reply.code(503).send({ error: 'budget_not_configured' });
+    const enqueued = database.enqueueBudgetBackfill();
+    void worker.tick();
+    return reply.code(202).send({ enqueued });
   });
 
   app.setErrorHandler((error, _request, reply) => {

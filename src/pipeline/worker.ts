@@ -5,6 +5,7 @@ import { DeferredEventError, WebhookProcessor } from './processor.js';
 import type { CalendarSync } from '../services/calendar.js';
 import type { TransactionAnalyzer, TransactionAnalysis } from '../services/categorizer.js';
 import type { TelegramNotifier } from '../services/telegram.js';
+import { BudgetMirror } from '../services/budget.js';
 
 interface Logger {
   info(bindings: object, message: string): void;
@@ -16,6 +17,7 @@ export class PipelineWorker {
   private timer: NodeJS.Timeout | undefined;
   private running = false;
   private readonly webhookProcessor: WebhookProcessor;
+  private readonly budget: BudgetMirror;
 
   constructor(
     private readonly config: AppConfig,
@@ -24,8 +26,10 @@ export class PipelineWorker {
     private readonly analyzer: TransactionAnalyzer,
     private readonly telegram: TelegramNotifier,
     private readonly logger: Logger,
+    budget?: BudgetMirror,
   ) {
     this.webhookProcessor = new WebhookProcessor(config, database);
+    this.budget = budget ?? new BudgetMirror(config);
   }
 
   start(): void {
@@ -80,6 +84,8 @@ export class PipelineWorker {
         await this.analyzeTransaction(item.payload as { transactionId: string });
       } else if (item.kind === 'status_notification') {
         await this.sendStatusNotification(item.payload as { transactionId: string; status: string });
+      } else if (item.kind === 'budget_sync') {
+        await this.syncBudget(item.payload as { transactionId: string });
       } else {
         throw new Error(`Unsupported outbox kind: ${item.kind}`);
       }
@@ -112,6 +118,7 @@ export class PipelineWorker {
         needsReview,
       );
       this.database.enqueueOutbox('calendar_sync', transaction.localDate, { localDate: transaction.localDate }, true);
+      this.database.enqueueOutbox('budget_sync', transaction.id, { transactionId: transaction.id }, true);
       transaction = this.database.getTransaction(transaction.id)!;
     }
     if (!transaction.notifiedAt) {
@@ -119,6 +126,12 @@ export class PipelineWorker {
       this.database.markNotified(transaction.id);
     }
     this.logger.info({ transactionId: transaction.id, category: analysis.category, confidence: analysis.confidence }, 'transaction analyzed');
+  }
+
+  private async syncBudget(payload: { transactionId: string }): Promise<void> {
+    const transaction = this.database.getTransaction(payload.transactionId);
+    if (!transaction) throw new Error(`Transaction not found: ${payload.transactionId}`);
+    await this.budget.sync(transaction);
   }
 
   private async sendStatusNotification(payload: { transactionId: string; status: string }): Promise<void> {

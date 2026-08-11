@@ -24,6 +24,9 @@ const schema = z.object({
   HERMES_AGENT_TIMEOUT_MS: z.coerce.number().int().positive().default(150_000),
   TELEGRAM_BOT_TOKEN: optionalString,
   TELEGRAM_CHAT_ID: optionalString,
+  BUDGET_API_URL: optionalUrl,
+  BUDGET_API_TOKEN: optionalString,
+  BUDGET_API_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   MONTHLY_BUDGETS_JSON: z.string().default('{}'),
   CATEGORY_BUDGETS_JSON: z.string().default('{}'),
   CATEGORY_CONFIDENCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.72),
@@ -63,5 +66,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     calendarEnabled: Boolean(parsed.GOOGLE_CALENDAR_ID && (parsed.GOOGLE_SERVICE_ACCOUNT_FILE || parsed.GOOGLE_SERVICE_ACCOUNT_JSON)),
     hermesEnabled: Boolean(parsed.HERMES_AGENT_URL && parsed.HERMES_AGENT_KEY),
     telegramEnabled: Boolean(parsed.TELEGRAM_BOT_TOKEN && parsed.TELEGRAM_CHAT_ID),
+    budgetEnabled: Boolean(parsed.BUDGET_API_URL && parsed.BUDGET_API_TOKEN),
   };
 }
