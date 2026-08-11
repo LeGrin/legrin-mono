@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+node_modules
+dist
+coverage
+data
+secrets
+legacy
+test
+*.db
+*.db-shm
+*.db-wal
+*.key
+*.crt
+*.pem

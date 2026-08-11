@@ -1,0 +1,4 @@
+finance.example.com {
+  # The Monobank secret is part of the URL. Do not enable request access logs here.
+  reverse_proxy 127.0.0.1:18088
+}
