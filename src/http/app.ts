@@ -179,6 +179,14 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     return reply.code(202).send({ enqueued });
   });
 
+  app.post('/api/admin/sync-calendar', async (request, reply) => {
+    if (!apiGuard(request.headers.authorization)) return reply.code(401).send({ error: 'unauthorized' });
+    if (!config.calendarEnabled) return reply.code(503).send({ error: 'calendar_not_configured' });
+    const enqueued = database.enqueueCalendarBackfill();
+    void worker.tick();
+    return reply.code(202).send({ enqueued });
+  });
+
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof z.ZodError) {
       return reply.code(400).send({ error: 'invalid_payload', issues: error.issues });

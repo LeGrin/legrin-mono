@@ -100,11 +100,31 @@ function extractJsonObject(text: string): unknown {
   throw new Error('Hermes response contained incomplete JSON');
 }
 
-function categoryTotals(summary: MonthSummaryRow[], category: string): Record<string, string> {
-  return Object.fromEntries(
+function categoryTotals(
+  summary: MonthSummaryRow[],
+  category: string,
+  transaction: StoredTransaction,
+): Record<string, string> {
+  const totals = new Map(
     summary
       .filter((row) => row.category === category)
-      .map((row) => [row.currency, money(row.amountMinor, row.currency, row.amountExponent)]),
+      .map((row) => [row.currency, { amountMinor: row.amountMinor, exponent: row.amountExponent }]),
+  );
+  const effectiveStoredCategory = transaction.category ?? 'Other';
+  const currentNeedsProjection = transaction.status === 'completed'
+    && transaction.kind === 'expense'
+    && transaction.amountMinor < 0
+    && effectiveStoredCategory !== category;
+  if (currentNeedsProjection) {
+    const existing = totals.get(transaction.currency) ?? { amountMinor: 0, exponent: transaction.amountExponent };
+    existing.amountMinor += Math.abs(transaction.amountMinor);
+    totals.set(transaction.currency, existing);
+  }
+  return Object.fromEntries(
+    [...totals.entries()].map(([currency, total]) => [
+      currency,
+      money(total.amountMinor, currency, total.exponent),
+    ]),
   );
 }
 
@@ -126,6 +146,20 @@ function fallbackAnalysis(
 ): TransactionAnalysis {
   const category = initial.category ?? null;
   const amount = money(Math.abs(transaction.amountMinor), transaction.currency, transaction.amountExponent);
+  if (transaction.status === 'pending') {
+    return {
+      category,
+      confidence: initial.confidence,
+      needs_clarification: !category || initial.needsReview,
+      clarification_question: !category || initial.needsReview
+        ? `Що це за очікуюча операція в ${transaction.merchant} на ${amount}?`
+        : null,
+      user_message: category && !initial.needsReview
+        ? `⏳ Банк зарезервував ${amount} у ${transaction.merchant} → ${category}. Поки не додаю цю суму до місячних витрат, доки операцію не підтверджено.`
+        : `⏳ Банк зарезервував ${amount} у ${transaction.merchant}. Категорія ще не визначена, і сума поки не входить до місячних витрат. Що це було? ID: ${transaction.id}`,
+      insight: null,
+    };
+  }
   const insight = repeatedMerchantInsight(transaction, stats);
   if (!category || initial.needsReview) {
     return {
@@ -137,7 +171,7 @@ function fallbackAnalysis(
       insight,
     };
   }
-  const totals = categoryTotals(summary, category);
+  const totals = categoryTotals(summary, category, transaction);
   const totalText = Object.values(totals).join(' + ') || amount;
   return {
     category,

@@ -310,7 +310,7 @@ export class FinanceDatabase {
              SUM(-amount_minor) AS amount_minor, COUNT(*) AS count
       FROM transactions
       WHERE local_month = ? AND amount_minor < 0 AND kind != 'transfer'
-        AND status NOT IN ('declined', 'failed', 'reverted')
+        AND status = 'completed'
       GROUP BY COALESCE(category, 'Other'), currency, amount_exponent
       ORDER BY amount_minor DESC
     `).all(localMonth) as Row[];
@@ -334,7 +334,7 @@ export class FinanceDatabase {
         COALESCE(AVG(CASE WHEN amount_minor < 0 THEN -amount_minor END), 0) AS avg_minor
       FROM transactions
       WHERE merchant_key = ? AND occurred_at >= ?
-        AND status NOT IN ('declined', 'failed', 'reverted')
+        AND status = 'completed'
     `).get(from7d, merchant, from30d) as Row;
     return {
       count7d: Number(row.count_7d ?? 0),
@@ -458,6 +458,15 @@ export class FinanceDatabase {
     for (const row of rows) {
       const id = String(row.id);
       this.enqueueOutbox('budget_sync', id, { transactionId: id }, true);
+    }
+    return rows.length;
+  }
+
+  enqueueCalendarBackfill(): number {
+    const rows = this.db.prepare('SELECT DISTINCT local_date FROM transactions ORDER BY local_date').all() as Row[];
+    for (const row of rows) {
+      const localDate = String(row.local_date);
+      this.enqueueOutbox('calendar_sync', localDate, { localDate }, true);
     }
     return rows.length;
   }

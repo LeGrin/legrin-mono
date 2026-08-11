@@ -60,8 +60,12 @@ export function renderDailyEvent(
   monthSummary: ReturnType<FinanceDatabase['getMonthSummary']>,
   config: Pick<AppConfig, 'TIMEZONE' | 'monthlyBudgets'>,
 ): RenderedCalendarEvent {
-  const active = transactions.filter((transaction) => !['declined', 'failed', 'reverted'].includes(transaction.status));
-  const expenses = active.filter((transaction) => transaction.kind === 'expense' && transaction.amountMinor < 0);
+  const expenses = transactions.filter((transaction) =>
+    transaction.status === 'completed' && transaction.kind === 'expense' && transaction.amountMinor < 0,
+  );
+  const pendingExpenses = transactions.filter((transaction) =>
+    transaction.status === 'pending' && transaction.kind === 'expense' && transaction.amountMinor < 0,
+  );
   const expenseTotals = totalByCurrency(expenses);
   const totalText = [...expenseTotals.entries()]
     .map(([currency, total]) => money(total.amountMinor, currency, total.exponent))
@@ -82,7 +86,7 @@ export function renderDailyEvent(
   );
 
   return {
-    summary: `${signal} ${totalText} · ${expenses.length} витрат`,
+    summary: `${signal} ${totalText} · ${expenses.length} підтверджених витрат${pendingExpenses.length ? ` · ${pendingExpenses.length} очікують` : ''}`,
     description: [
       `Рухи коштів за ${localDate}`,
       '',
@@ -120,6 +124,11 @@ export class CalendarSync {
     const existing = this.database.getCalendarEvent(localDate);
     if (existing?.contentHash === contentHash) return;
 
+    if (this.config.googleSidecarEnabled) {
+      await this.syncThroughSidecar(rendered, existing?.eventId, contentHash, localDate);
+      return;
+    }
+
     const calendar = await this.getCalendar();
     let eventId = existing?.eventId ?? createHash('sha256').update(`legrin-finance:${localDate}`).digest('hex').slice(0, 32);
     if (eventId) {
@@ -150,6 +159,40 @@ export class CalendarSync {
         }
       }
     }
+    this.database.setCalendarEvent(localDate, eventId, contentHash);
+  }
+
+  private async syncThroughSidecar(
+    rendered: RenderedCalendarEvent,
+    existingEventId: string | undefined,
+    contentHash: string,
+    localDate: string,
+  ): Promise<void> {
+    const base = this.config.GOOGLE_SIDECAR_URL!.replace(/\/$/, '');
+    const common = {
+      user_id: this.config.GOOGLE_SIDECAR_USER_ID,
+      calendarId: this.config.GOOGLE_CALENDAR_ID,
+      summary: rendered.summary,
+      description: rendered.description,
+      startDateTime: `${rendered.start.date}T00:00:00`,
+      endDateTime: `${rendered.end.date}T00:00:00`,
+      timeZone: this.config.TIMEZONE,
+    };
+    const response = await fetch(`${base}/calendar/events/${existingEventId ? 'update' : 'create'}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.config.GOOGLE_SIDECAR_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(existingEventId ? { ...common, eventId: existingEventId } : common),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const body = await response.json().catch(() => ({})) as { event?: { id?: string }; error?: string; message?: string };
+    if (!response.ok) {
+      throw new Error(`Google sidecar returned ${response.status}: ${body.error ?? body.message ?? 'calendar_error'}`);
+    }
+    const eventId = existingEventId ?? body.event?.id;
+    if (!eventId) throw new Error('Google sidecar did not return an event id');
     this.database.setCalendarEvent(localDate, eventId, contentHash);
   }
 

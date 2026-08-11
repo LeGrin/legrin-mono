@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FinanceDatabase } from '../src/db/database.js';
-import { renderDailyEvent } from '../src/services/calendar.js';
+import { CalendarSync, renderDailyEvent } from '../src/services/calendar.js';
 import { TransactionAnalyzer } from '../src/services/categorizer.js';
 import { TelegramNotifier } from '../src/services/telegram.js';
 import { PipelineWorker } from '../src/pipeline/worker.js';
@@ -108,6 +108,131 @@ describe('durable transaction pipeline', () => {
     ]);
   });
 
+  it('keeps pending holds out of totals and sends an accurate total when the payment completes', async () => {
+    const config = testConfig();
+    const database = createDatabase();
+    database.upsertTransaction({
+      id: 'monobank:mono-account:confirmed-before',
+      source: 'monobank',
+      sourceTransactionId: 'confirmed-before',
+      accountId: 'mono-account',
+      occurredAt: '2026-08-10T12:00:00.000Z',
+      updatedAt: '2026-08-10T12:00:00.000Z',
+      localDate: '2026-08-10',
+      localMonth: '2026-08',
+      description: 'Mlinar',
+      merchant: 'Mlinar',
+      merchantKey: 'MLINAR',
+      mcc: 5812,
+      amountMinor: -1000,
+      amountExponent: 2,
+      currency: 'EUR',
+      status: 'completed',
+      kind: 'expense',
+      category: 'Restaurants & coffee',
+      categoryConfidence: 1,
+      categorySource: 'manual',
+      needsReview: false,
+      raw: {},
+    });
+    const messages: string[] = [];
+    const worker = new PipelineWorker(
+      config,
+      database,
+      { syncDay: async () => undefined } as never,
+      new TransactionAnalyzer(config, database),
+      { send: async (message: string) => { messages.push(message); } } as TelegramNotifier,
+      logger,
+    );
+    const statementItem = {
+      id: 'pending-then-completed',
+      time: 1_786_436_400,
+      description: 'MLINAR CENTAR',
+      mcc: 5812,
+      amount: -850,
+      currencyCode: 978,
+    };
+
+    database.enqueueWebhook('monobank', 'pending-event', {
+      type: 'StatementItem',
+      data: { account: 'mono-account', statementItem: { ...statementItem, hold: true } },
+    });
+    await worker.tick();
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain('Банк зарезервував 8,50');
+    expect(messages[0]).toContain('Поки не додаю цю суму до місячних витрат');
+    expect(database.getMonthSummary('2026-08')).toEqual([
+      expect.objectContaining({ category: 'Restaurants & coffee', amountMinor: 1000, count: 1 }),
+    ]);
+
+    database.enqueueWebhook('monobank', 'completed-event', {
+      type: 'StatementItem',
+      data: { account: 'mono-account', statementItem: { ...statementItem, hold: false } },
+    });
+    await worker.tick();
+
+    expect(messages).toHaveLength(2);
+    expect(messages[1]).toContain('Платіж підтверджено: 8,50');
+    expect(messages[1]).toContain('Цього місяця в категорії вже 18,50');
+    expect(messages[1]).toContain('Calendar sync ще не ввімкнено');
+    expect(database.getMonthSummary('2026-08')).toEqual([
+      expect.objectContaining({ category: 'Restaurants & coffee', amountMinor: 1850, count: 2 }),
+    ]);
+  });
+
+  it('includes the current confirmed payment in its initial category total', async () => {
+    const config = testConfig();
+    const database = createDatabase();
+    const base = {
+      source: 'monobank' as const,
+      accountId: 'mono-account',
+      amountExponent: 2,
+      currency: 'EUR',
+      kind: 'expense' as const,
+      status: 'completed' as const,
+      needsReview: false,
+      raw: {},
+    };
+    database.upsertTransaction({
+      ...base,
+      id: 'monobank:mono-account:existing',
+      sourceTransactionId: 'existing',
+      occurredAt: '2026-08-10T12:00:00.000Z',
+      updatedAt: '2026-08-10T12:00:00.000Z',
+      localDate: '2026-08-10',
+      localMonth: '2026-08',
+      description: 'Mlinar',
+      merchant: 'Mlinar',
+      merchantKey: 'MLINAR',
+      mcc: 5812,
+      amountMinor: -1000,
+      category: 'Restaurants & coffee',
+      categoryConfidence: 1,
+      categorySource: 'manual',
+    });
+    database.upsertTransaction({
+      ...base,
+      id: 'monobank:mono-account:current',
+      sourceTransactionId: 'current',
+      occurredAt: '2026-08-11T12:00:00.000Z',
+      updatedAt: '2026-08-11T12:00:00.000Z',
+      localDate: '2026-08-11',
+      localMonth: '2026-08',
+      description: 'Mlinar',
+      merchant: 'Mlinar',
+      merchantKey: 'MLINAR',
+      mcc: 5812,
+      amountMinor: -850,
+    });
+
+    const analysis = await new TransactionAnalyzer(config, database).analyze(
+      database.getTransaction('monobank:mono-account:current')!,
+    );
+
+    expect(analysis.user_message).toContain('Цього місяця в категорії вже 18,50');
+  });
+
   it('remembers a manual merchant correction for later transactions', () => {
     const database = createDatabase();
     const transaction = {
@@ -176,6 +301,55 @@ describe('durable transaction pipeline', () => {
     expect(rendered.summary).toContain('150,00');
     expect(rendered.description).toContain('[mono] Mlinar');
     expect(rendered.end.date).toBe('2026-08-12');
+  });
+
+  it('syncs the daily finance event through the Google OAuth sidecar', async () => {
+    const config = testConfig({
+      GOOGLE_CALENDAR_ID: 'finance-calendar@example.com',
+      GOOGLE_SIDECAR_URL: 'http://google-sidecar:19200',
+      GOOGLE_SIDECAR_TOKEN: 'sidecar-token-for-tests',
+      GOOGLE_SIDECAR_USER_ID: 'telegram-user-1',
+    });
+    const database = createDatabase();
+    database.upsertTransaction({
+      id: 'monobank:a:calendar-sidecar-1',
+      source: 'monobank',
+      sourceTransactionId: 'calendar-sidecar-1',
+      accountId: 'a',
+      occurredAt: '2026-08-11T08:00:00.000Z',
+      updatedAt: '2026-08-11T08:00:00.000Z',
+      localDate: '2026-08-11',
+      localMonth: '2026-08',
+      description: 'Mlinar',
+      merchant: 'Mlinar',
+      merchantKey: 'MLINAR',
+      amountMinor: -850,
+      amountExponent: 2,
+      currency: 'EUR',
+      status: 'completed',
+      kind: 'expense',
+      category: 'Restaurants & coffee',
+      categoryConfidence: 1,
+      categorySource: 'manual',
+      needsReview: false,
+      raw: {},
+    });
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ event: { id: 'sidecar-event-1' } }), { status: 201 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await new CalendarSync(config, database).syncDay('2026-08-11');
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, request] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('http://google-sidecar:19200/calendar/events/create');
+    expect(request.headers).toMatchObject({ Authorization: 'Bearer sidecar-token-for-tests' });
+    expect(JSON.parse(String(request.body))).toMatchObject({
+      user_id: 'telegram-user-1',
+      calendarId: 'finance-calendar@example.com',
+      startDateTime: '2026-08-11T00:00:00',
+      endDateTime: '2026-08-12T00:00:00',
+    });
+    expect(database.getCalendarEvent('2026-08-11')).toMatchObject({ eventId: 'sidecar-event-1' });
   });
 
   it('uses live Hermes only for classification and discards ungrounded model prose', async () => {

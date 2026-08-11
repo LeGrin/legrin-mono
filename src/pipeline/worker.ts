@@ -137,8 +137,22 @@ export class PipelineWorker {
   private async sendStatusNotification(payload: { transactionId: string; status: string }): Promise<void> {
     const transaction = this.database.getTransaction(payload.transactionId);
     if (!transaction) return;
-    await this.telegram.send(
-      `↩️ ${transaction.merchant}: операція ${money(Math.abs(transaction.amountMinor), transaction.currency, transaction.amountExponent)} тепер має статус ${payload.status}. Календар і звіт оновлено.`,
-    );
+    const amount = money(Math.abs(transaction.amountMinor), transaction.currency, transaction.amountExponent);
+    const syncText = this.config.calendarEnabled
+      ? 'Звіт, Budget і Calendar оновлено.'
+      : 'Звіт і Budget оновлено; Calendar sync ще не ввімкнено.';
+    if (payload.status === 'completed') {
+      const totals = transaction.category
+        ? this.database.getMonthSummary(transaction.localMonth)
+          .filter((row) => row.category === transaction.category)
+          .map((row) => money(row.amountMinor, row.currency, row.amountExponent))
+          .join(' + ')
+        : '';
+      const categoryText = transaction.category ? ` → ${transaction.category}` : '';
+      const totalText = totals ? ` Цього місяця в категорії вже ${totals}.` : '';
+      await this.telegram.send(`✅ Платіж підтверджено: ${amount} у ${transaction.merchant}${categoryText}.${totalText} ${syncText}`);
+      return;
+    }
+    await this.telegram.send(`↩️ ${transaction.merchant}: операція ${amount} має статус ${payload.status} і не враховується у витратах. ${syncText}`);
   }
 }

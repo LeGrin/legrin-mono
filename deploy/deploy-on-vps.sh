@@ -91,6 +91,10 @@ if ! docker network connect legrin-network "${app_name}"; then
   rollback
   fail 'proxy_network_connect_failed'
 fi
+if ! docker network connect infrastructure "${app_name}"; then
+  rollback
+  fail 'google_sidecar_network_connect_failed'
+fi
 
 healthy=false
 for _ in $(seq 1 90); do

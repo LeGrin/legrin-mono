@@ -19,6 +19,9 @@ const schema = z.object({
   GOOGLE_CALENDAR_ID: optionalString,
   GOOGLE_SERVICE_ACCOUNT_FILE: optionalString,
   GOOGLE_SERVICE_ACCOUNT_JSON: optionalString,
+  GOOGLE_SIDECAR_URL: optionalUrl,
+  GOOGLE_SIDECAR_TOKEN: optionalString,
+  GOOGLE_SIDECAR_USER_ID: optionalString,
   HERMES_AGENT_URL: optionalUrl,
   HERMES_AGENT_KEY: optionalString,
   HERMES_AGENT_TIMEOUT_MS: z.coerce.number().int().positive().default(150_000),
@@ -59,11 +62,17 @@ export type AppConfig = ReturnType<typeof loadConfig>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const parsed = schema.parse(env);
+  const googleSidecarEnabled = Boolean(
+    parsed.GOOGLE_SIDECAR_URL && parsed.GOOGLE_SIDECAR_TOKEN && parsed.GOOGLE_SIDECAR_USER_ID,
+  );
   return {
     ...parsed,
     monthlyBudgets: parseMoneyMap(parsed.MONTHLY_BUDGETS_JSON, 'MONTHLY_BUDGETS_JSON'),
     categoryBudgets: parseCategoryBudgetMap(parsed.CATEGORY_BUDGETS_JSON),
-    calendarEnabled: Boolean(parsed.GOOGLE_CALENDAR_ID && (parsed.GOOGLE_SERVICE_ACCOUNT_FILE || parsed.GOOGLE_SERVICE_ACCOUNT_JSON)),
+    googleSidecarEnabled,
+    calendarEnabled: Boolean(parsed.GOOGLE_CALENDAR_ID && (
+      parsed.GOOGLE_SERVICE_ACCOUNT_FILE || parsed.GOOGLE_SERVICE_ACCOUNT_JSON || googleSidecarEnabled
+    )),
     hermesEnabled: Boolean(parsed.HERMES_AGENT_URL && parsed.HERMES_AGENT_KEY),
     telegramEnabled: Boolean(parsed.TELEGRAM_BOT_TOKEN && parsed.TELEGRAM_CHAT_ID),
     budgetEnabled: Boolean(parsed.BUDGET_API_URL && parsed.BUDGET_API_TOKEN),

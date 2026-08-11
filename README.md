@@ -186,6 +186,8 @@ Adapter має повторювати delivery при non-2xx та надсил�
 3. Покладіть JSON у `secrets/google-service-account.json`.
 4. Встановіть `GOOGLE_CALENDAR_ID`.
 
+На `legrin-main` можна не створювати окремий service account. Pipeline також підтримує вже розгорнутий `google-sidecar`, який зберігає user OAuth tokens. Для цього встановіть `GOOGLE_SIDECAR_URL`, `GOOGLE_SIDECAR_TOKEN` і `GOOGLE_SIDECAR_USER_ID`; Calendar ID старого finance-календаря можна залишити тим самим.
+
 Звичайний Google API key сам по собі не дає права записувати у приватний календар. Для цього потрібен OAuth access або service account JSON, а календар треба явно share-нути з service account email.
 
 Нові event IDs детерміновані за датою, що запобігає дублюванню при crash між Google insert і локальним commit.
@@ -235,6 +237,8 @@ Authorization: Bearer INTERNAL_API_TOKEN
 | `PATCH` | `/api/transactions/:id/category` | Категорія та merchant memory |
 | `GET` | `/api/summary/month?month=YYYY-MM` | Місячний summary |
 | `POST` | `/api/admin/retry-failed` | Повторити failed inbox/outbox jobs |
+| `POST` | `/api/admin/sync-budget` | Повторно віддзеркалити всі транзакції у Budget app |
+| `POST` | `/api/admin/sync-calendar` | Повторно синхронізувати кожну дату з транзакціями у Calendar |
 
 Correction body:
 

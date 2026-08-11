@@ -79,6 +79,7 @@ export class WebhookProcessor {
     const primaryTransfer = transactions.find((transaction) => transaction.kind === 'transfer' && transaction.amountMinor < 0)
       ?? transactions.find((transaction) => transaction.kind === 'transfer');
     for (const transaction of transactions) {
+      const previous = this.database.getTransaction(transaction.id);
       const result = this.database.upsertTransaction(transaction);
       if (result.materiallyChanged) {
         this.database.enqueueOutbox('calendar_sync', transaction.localDate, { localDate: transaction.localDate }, true);
@@ -94,6 +95,13 @@ export class WebhookProcessor {
           'status_notification',
           `${transaction.id}:${transaction.status}`,
           { transactionId: transaction.id, status: transaction.status },
+        );
+      }
+      if (!result.created && previous?.status === 'pending' && transaction.status === 'completed') {
+        this.database.enqueueOutbox(
+          'status_notification',
+          `${transaction.id}:completed`,
+          { transactionId: transaction.id, status: 'completed' },
         );
       }
     }

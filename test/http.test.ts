@@ -125,4 +125,59 @@ TRANSFER,Current,2026-08-11 09:15:00,2026-08-11 09:16:00,Rent,-700.00,0.50,EUR,C
     expect(tick).toHaveBeenCalledOnce();
     await app.close();
   });
+
+  it('protects Calendar backfill and queues one sync per transaction date', async () => {
+    const config = testConfig({
+      GOOGLE_CALENDAR_ID: 'finance-calendar',
+      GOOGLE_SIDECAR_URL: 'http://google-sidecar:19200',
+      GOOGLE_SIDECAR_TOKEN: 'google-sidecar-token-for-tests',
+      GOOGLE_SIDECAR_USER_ID: '778286',
+    });
+    const database = new FinanceDatabase(':memory:');
+    databases.push(database);
+    for (const [id, localDate] of [
+      ['calendar-1', '2026-08-10'],
+      ['calendar-2', '2026-08-11'],
+      ['calendar-3', '2026-08-11'],
+    ] as const) {
+      database.upsertTransaction({
+        id: `monobank:a:${id}`,
+        source: 'monobank',
+        sourceTransactionId: id,
+        accountId: 'a',
+        occurredAt: `${localDate}T08:00:00.000Z`,
+        updatedAt: `${localDate}T08:00:00.000Z`,
+        localDate,
+        localMonth: '2026-08',
+        description: 'Calendar acceptance',
+        merchant: 'Calendar acceptance',
+        merchantKey: 'CALENDAR ACCEPTANCE',
+        amountMinor: -500,
+        amountExponent: 2,
+        currency: 'EUR',
+        status: 'completed',
+        kind: 'expense',
+        needsReview: false,
+        raw: {},
+      });
+    }
+    const tick = vi.fn(async () => undefined);
+    const app = await buildApp({ config, database, worker: { tick } as unknown as PipelineWorker });
+
+    expect((await app.inject({ method: 'POST', url: '/api/admin/sync-calendar' })).statusCode).toBe(401);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/admin/sync-calendar',
+      headers: { authorization: `Bearer ${config.INTERNAL_API_TOKEN}` },
+    });
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toEqual({ enqueued: 2 });
+    expect(database.db.prepare("SELECT kind, aggregate_key, payload_json FROM outbox WHERE kind = 'calendar_sync' ORDER BY aggregate_key").all())
+      .toEqual([
+        { kind: 'calendar_sync', aggregate_key: '2026-08-10', payload_json: '{"localDate":"2026-08-10"}' },
+        { kind: 'calendar_sync', aggregate_key: '2026-08-11', payload_json: '{"localDate":"2026-08-11"}' },
+      ]);
+    expect(tick).toHaveBeenCalledOnce();
+    await app.close();
+  });
 });

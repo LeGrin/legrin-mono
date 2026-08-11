@@ -1,10 +1,10 @@
 ---
 name: finance-tracker
-description: Track Monobank and Revolut transactions, resolve unclear expenses, correct categories, and report monthly spending through the LeGrin finance pipeline.
+description: Ingest Monobank and Revolut bank statements, track transactions, and read or update the LeGrin Budget app through its private Finance and Budget APIs. Use for budget questions, statement uploads, missing data, categories, monthly spending, and finance UI consistency.
 version: 1.0.0
 metadata:
   hermes:
-    tags: [finance, monobank, revolut, expenses, budget, витрати, фінанси, категорія]
+    tags: [finance, monobank, revolut, statement, csv, expenses, budget, budget-app, виписка, витрати, фінанси, категорія]
     related_skills: []
 ---
 
@@ -26,6 +26,7 @@ Required environment variables inside KITT:
 - User says a category is wrong or asks to recategorize a transaction.
 - User asks about expenses, monthly totals, a merchant, or uncategorized transactions.
 - User asks about Budget UI values, expected income/outgoings, targets, liquidity, envelopes, notes, or missing data.
+- User asks whether KITT knows the Budget app or its endpoints. Do not answer from memory; probe the live Budget health endpoint first.
 
 ## Import a Revolut statement from Telegram
 
@@ -81,6 +82,16 @@ Ask about one transaction at a time. Include merchant, amount, bank, and transac
 ## Budget UI and missing data
 
 Budget owns planning data, expected flows, targets, liquidity snapshots, envelopes, notes, and the UI transaction mirror. Finance remains authoritative for provider facts and categories.
+
+KITT does have private access to this app. Before saying Budget is unavailable or unknown, call:
+
+```bash
+curl -fsS \
+  -H "Authorization: Bearer $BUDGET_API_TOKEN" \
+  "$BUDGET_API_URL/internal/v1/health"
+```
+
+The internal base is `$BUDGET_API_URL/internal/v1`. Supported read endpoints are `/health`, `/dashboard`, `/transactions`, `/transactions/:id`, `/missing-data`, `/summary/month`, and `/budget-state`. Supported typed writes are transaction annotation, category command, budget-state patch, expected income, and manual entry. Do not invent other endpoints.
 
 Read the same dashboard model used by the UI:
 
@@ -161,6 +172,16 @@ curl -fsS -X POST \
 ```
 
 Re-read both collections after the worker finishes. A dashboard row count is not a mirror count.
+
+If Finance reports `calendar: true` but a daily Calendar record is missing or stale, enqueue one deterministic sync per transaction date:
+
+```bash
+curl -fsS -X POST \
+  -H "Authorization: Bearer $FINANCE_API_TOKEN" \
+  "$FINANCE_API_URL/api/admin/sync-calendar"
+```
+
+Then wait for the worker and re-read Finance health or the relevant Calendar day before claiming synchronization.
 
 ## Monthly summary
 
