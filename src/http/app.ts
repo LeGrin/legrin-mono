@@ -4,6 +4,7 @@ import rawBody from 'fastify-raw-body';
 import { z } from 'zod';
 
 import { monobankDedupeKey, monobankWebhookSchema } from '../adapters/monobank.js';
+import { parseRevolutStatementCsv } from '../adapters/revolut-statement.js';
 import {
   revolutBusinessWebhookSchema,
   revolutDedupeKey,
@@ -32,11 +33,16 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
   const { config, database, worker } = dependencies;
   const app = Fastify({
     logger: { level: config.LOG_LEVEL },
-    bodyLimit: 1_048_576,
+    bodyLimit: 5_242_880,
     trustProxy: true,
   });
   await app.register(rateLimit, { max: 120, timeWindow: '1 minute' });
   await app.register(rawBody, { field: 'rawBody', global: false, encoding: 'utf8', runFirst: true });
+  app.addContentTypeParser(
+    ['text/csv', 'application/csv', 'application/vnd.ms-excel'],
+    { parseAs: 'string' },
+    (_request, body, done) => done(null, body),
+  );
 
   const webhookSecretGuard = (secret: string | undefined) => safeSecretEqual(secret, config.WEBHOOK_SHARED_SECRET);
   const apiGuard = (authorization: string | undefined) => safeSecretEqual(bearerToken(authorization), config.INTERNAL_API_TOKEN);
@@ -89,6 +95,33 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     database.enqueueWebhook('revolut_personal', revolutPersonalDedupeKey(payload), payload);
     void worker.tick();
     return reply.code(202).send({ accepted: true });
+  });
+
+  app.post('/api/import/revolut/csv', async (request, reply) => {
+    if (!apiGuard(request.headers.authorization)) return reply.code(401).send({ error: 'unauthorized' });
+    const query = z.object({
+      account_id: z.string().min(1).max(100).default('revolut-personal'),
+    }).parse(request.query);
+    if (typeof request.body !== 'string') return reply.code(400).send({ error: 'csv_body_required' });
+    let transactions;
+    try {
+      transactions = parseRevolutStatementCsv(request.body, query.account_id);
+    } catch (error) {
+      return reply.code(400).send({
+        error: 'invalid_revolut_csv',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+    let accepted = 0;
+    for (const transaction of transactions) {
+      if (database.enqueueWebhook('revolut_personal', revolutPersonalDedupeKey(transaction), transaction)) accepted += 1;
+    }
+    void worker.tick();
+    return reply.code(202).send({
+      rows: transactions.length,
+      accepted,
+      duplicates: transactions.length - accepted,
+    });
   });
 
   app.get('/api/transactions', async (request, reply) => {

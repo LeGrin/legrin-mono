@@ -400,9 +400,16 @@ export class FinanceDatabase {
     if (!transaction) return undefined;
     this.db.prepare(`
       UPDATE transactions
-      SET category = ?, category_confidence = 1, category_source = 'manual', needs_review = 0, last_seen_at = ?
+      SET category = ?, category_confidence = 1, category_source = 'manual', needs_review = 0,
+          kind = CASE
+            WHEN ? = 'Transfers' THEN 'transfer'
+            WHEN kind = 'transfer' AND amount_minor < 0 THEN 'expense'
+            WHEN kind = 'transfer' AND amount_minor >= 0 THEN 'income'
+            ELSE kind
+          END,
+          last_seen_at = ?
       WHERE id = ?
-    `).run(category, now(), id);
+    `).run(category, category, now(), id);
     if (remember && transaction.merchantKey) {
       this.db.prepare(`
         DELETE FROM category_rules WHERE merchant_key = ? AND mcc IS NULL

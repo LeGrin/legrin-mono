@@ -11,6 +11,38 @@ afterEach(() => {
 });
 
 describe('HTTP API', () => {
+  it('imports a Revolut CSV statement idempotently through the protected API', async () => {
+    const config = testConfig();
+    const database = new FinanceDatabase(':memory:');
+    databases.push(database);
+    const tick = vi.fn(async () => undefined);
+    const app = await buildApp({ config, database, worker: { tick } as unknown as PipelineWorker });
+    const csv = `Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
+CARD_PAYMENT,Current,2026-08-10 18:30:00,2026-08-10 18:31:00,Mlinar,-8.50,0.00,EUR,COMPLETED,1200.25
+TRANSFER,Current,2026-08-11 09:15:00,2026-08-11 09:16:00,Rent,-700.00,0.50,EUR,COMPLETED,500.25
+`;
+    const request = () => app.inject({
+      method: 'POST' as const,
+      url: '/api/import/revolut/csv?account_id=personal-main',
+      headers: {
+        authorization: `Bearer ${config.INTERNAL_API_TOKEN}`,
+        'content-type': 'text/csv',
+      },
+      payload: csv,
+    });
+
+    expect((await app.inject({ method: 'POST', url: '/api/import/revolut/csv', headers: { 'content-type': 'text/csv' }, payload: csv })).statusCode).toBe(401);
+    const first = await request();
+    expect(first.statusCode).toBe(202);
+    expect(first.json()).toEqual({ rows: 3, accepted: 3, duplicates: 0 });
+    const second = await request();
+    expect(second.statusCode).toBe(202);
+    expect(second.json()).toEqual({ rows: 3, accepted: 0, duplicates: 3 });
+    expect(database.db.prepare('SELECT COUNT(*) AS count FROM webhook_events').get()).toMatchObject({ count: 3 });
+    expect(tick).toHaveBeenCalledTimes(2);
+    await app.close();
+  });
+
   it('implements the Monobank handshake, rejects wrong secrets, and durably accepts events', async () => {
     const config = testConfig();
     const database = new FinanceDatabase(':memory:');

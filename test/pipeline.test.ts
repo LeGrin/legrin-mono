@@ -135,6 +135,8 @@ describe('durable transaction pipeline', () => {
 
     expect(database.findCategoryRule('MYSTERY PLACE')).toBe('Shopping');
     expect(database.db.prepare('SELECT COUNT(*) AS count FROM category_rules WHERE merchant_key = ?').get('MYSTERY PLACE')).toMatchObject({ count: 1 });
+    database.setCategory(transaction.id, 'Transfers', false);
+    expect(database.getTransaction(transaction.id)?.kind).toBe('transfer');
   });
 
   it('renders one all-day event with a daily budget signal and correct exclusive end date', () => {

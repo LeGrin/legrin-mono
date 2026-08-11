@@ -40,8 +40,9 @@ flowchart LR
 
 Для Personal Revolut використовуйте один із варіантів:
 
-1. Регульований Open Banking provider або aggregator, який надсилає нормалізовані транзакції у `POST /webhooks/revolut/personal/:secret`.
-2. Власний дозволений adapter, який отримує дані з легального джерела й викликає той самий endpoint.
+1. **Рекомендований MVP:** завантажувати CSV-виписку в Telegram. KITT передає оригінальний файл у deterministic importer сервісу.
+2. Регульований Open Banking provider або aggregator, який надсилає нормалізовані транзакції у `POST /webhooks/revolut/personal/:secret`.
+3. Власний дозволений adapter, який отримує дані з легального джерела й викликає той самий endpoint.
 
 Не використовуйте browser scraping банкінгу або неофіційне зберігання login/password.
 
@@ -124,6 +125,28 @@ Webhook duplicate та out-of-order delivery обробляються. Для п
 
 ## Personal Revolut adapter contract
 
+### CSV statement через Telegram/KITT
+
+Експортуйте CSV у Revolut і надішліть його KITT. Skill не просить LLM парсити фінансові рядки, а передає файл байт-в-байт:
+
+```http
+POST /api/import/revolut/csv?account_id=revolut-personal
+Authorization: Bearer INTERNAL_API_TOKEN
+Content-Type: text/csv
+```
+
+Importer підтримує стандартні колонки Revolut `Type`, `Product`, `Started Date`, `Completed Date`, `Description`, `Amount`, `Fee`, `Currency`, `State`, `Balance`. Він:
+
+- створює stable transaction IDs без банківського transaction ID у CSV;
+- не дублює рядки при повторному завантаженні;
+- оновлює pending → completed при новішій виписці;
+- обліковує fee окремим рухом у категорії `Fees`;
+- відправляє імпортовані транзакції у той самий Calendar/KITT pipeline.
+
+CSV кращий за PDF. PDF parsing через LLM може переплутати знак, валюту, дату або пропустити рядок, тому PDF не імпортується автоматично.
+
+### Нормалізований adapter endpoint
+
 Protected shared-secret endpoint:
 
 ```http
@@ -155,6 +178,8 @@ Adapter має повторювати delivery при non-2xx та надсил�
 2. Поділіться потрібним календарем з email service account із правом редагування.
 3. Покладіть JSON у `secrets/google-service-account.json`.
 4. Встановіть `GOOGLE_CALENDAR_ID`.
+
+Звичайний Google API key сам по собі не дає права записувати у приватний календар. Для цього потрібен OAuth access або service account JSON, а календар треба явно share-нути з service account email.
 
 Нові event IDs детерміновані за датою, що запобігає дублюванню при crash між Google insert і локальним commit.
 
@@ -199,6 +224,7 @@ Authorization: Bearer INTERNAL_API_TOKEN
 |---|---|---|
 | `GET` | `/api/transactions?needs_review=true` | Невизначені витрати |
 | `GET` | `/api/transactions/:id` | Одна транзакція |
+| `POST` | `/api/import/revolut/csv` | Ідемпотентний CSV import Personal Revolut |
 | `PATCH` | `/api/transactions/:id/category` | Категорія та merchant memory |
 | `GET` | `/api/summary/month?month=YYYY-MM` | Місячний summary |
 | `POST` | `/api/admin/retry-failed` | Повторити failed inbox/outbox jobs |

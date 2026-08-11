@@ -49,6 +49,7 @@ const MERCHANT_RULES: Array<{ pattern: RegExp; category: Category }> = [
   { pattern: /GYM|YOGA|GENBUKAN|FITNESS/i, category: 'Sport' },
   { pattern: /PHARM|LJEKAR|APTEKA|POLIKLIN|HOSPITAL/i, category: 'Health' },
   { pattern: /AIRBNB|BOOKING\.COM|RYANAIR|CROATIA AIRLINES|WIZZ AIR/i, category: 'Travel' },
+  { pattern: /REVOLUT FEE|BANK FEE|COMMISSION/i, category: 'Fees' },
 ];
 
 export interface InitialCategory {
