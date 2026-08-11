@@ -12,7 +12,7 @@ The deploy wrapper:
 4. starts an isolated, read-only container on `legrin_default` and `legrin-network`;
 5. binds the service to `127.0.0.1:18088` for host health checks;
 6. checks the real `/health` endpoint for up to three minutes;
-7. restores the previous container automatically if startup or health fails;
+7. detects an exited replacement immediately and restores the previous container if startup or health fails;
 8. keeps the five most recent source releases.
 
 The production container is named `legrin-finance-pipeline`. KITT reaches it over `legrin_default`; Nginx Proxy Manager reaches it over `legrin-network`.

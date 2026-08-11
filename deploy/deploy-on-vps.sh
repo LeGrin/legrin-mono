@@ -98,6 +98,10 @@ for _ in $(seq 1 90); do
     healthy=true
     break
   fi
+  container_state="$(docker inspect --format '{{.State.Status}}' "${app_name}" 2>/dev/null || true)"
+  if [[ ${container_state} == exited || ${container_state} == dead ]]; then
+    break
+  fi
   sleep 2
 done
 
@@ -122,4 +126,3 @@ for stale_release in "${stale_releases[@]}"; do
 done
 
 printf 'deployed_revision=%s container=%s health=ok\n' "${revision}" "${app_name}"
-
