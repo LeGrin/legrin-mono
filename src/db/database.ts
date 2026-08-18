@@ -329,6 +329,7 @@ export class FinanceDatabase {
       FROM transactions
       WHERE local_month = ? AND amount_minor < 0 AND kind != 'transfer'
         AND status = 'completed'
+        AND merchant_key != 'SYNTHETIC PROBE'
       GROUP BY COALESCE(category, 'Other'), currency, amount_exponent
       ORDER BY amount_minor DESC
     `).all(localMonth) as Row[];
