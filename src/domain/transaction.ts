@@ -73,6 +73,7 @@ const BUILT_IN_INTERNAL_TRANSFER_PATTERNS: RegExp[] = [
   /^переказ\s+на\s+картку/iu,
   /^з\s+(?:білої|єврової|чорної|синьої)\s+картки/iu,
   /^на\s+(?:білу|єврову|чорну|синю)\s+картку/iu,
+  /^revolut\*\*\d+/i,
 ];
 
 export function isInternalTransferDescription(description: string, extraPatterns: readonly RegExp[] = []): boolean {

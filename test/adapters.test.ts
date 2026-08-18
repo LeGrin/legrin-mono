@@ -139,6 +139,8 @@ describe('internal transfer classification', () => {
     expect(normalizeWith('З Білої картки').kind).toBe('transfer');
     expect(normalizeWith('З білої картки').kind).toBe('transfer');
     expect(normalizeWith('На білу картку').kind).toBe('transfer');
+    // Top-ups to the owner's own Revolut card (mono EUR → Revolut leg).
+    expect(normalizeWith('Revolut**8551*').kind).toBe('transfer');
     // Income legs of transfers are also transfers.
     expect(normalizeWith('З гривневого рахунку ФОП', undefined).amountMinor).toBeLessThan(0);
   });
