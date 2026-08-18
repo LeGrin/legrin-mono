@@ -13,6 +13,8 @@ const schema = z.object({
   WEBHOOK_SHARED_SECRET: z.string().min(16),
   INTERNAL_API_TOKEN: z.string().min(24),
   MONOBANK_TOKEN: optionalString,
+  MONOBANK_RECONCILE_INTERVAL_SECONDS: z.coerce.number().int().nonnegative().default(900),
+  MONOBANK_RECONCILE_WINDOW_SECONDS: z.coerce.number().int().min(60).max(2_678_400).default(432_000),
   PUBLIC_BASE_URL: optionalUrl,
   REVOLUT_WEBHOOK_SIGNING_SECRET: optionalString,
   REVOLUT_TIMESTAMP_TOLERANCE_SECONDS: z.coerce.number().int().positive().default(300),

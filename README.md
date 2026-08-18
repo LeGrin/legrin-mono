@@ -23,6 +23,7 @@ flowchart LR
 ## Що вже реалізовано
 
 - Monobank webhook із суворою швидкою відповіддю `200`, deduplication і durable processing.
+- Reconciliation з Monobank statement API: сервіс раз на 15 хвилин (налаштовується через `MONOBANK_RECONCILE_INTERVAL_SECONDS`) підтягує авторитетні statement items за останні 5 днів (`MONOBANK_RECONCILE_WINDOW_SECONDS`) для всіх відомих monobank-акаунтів. Холди, які банк підтвердив, переходять у `completed`, пропущені вебхуками операції додаються, і Calendar/Budget одразу ресинхронізуються. Ручний запуск: `POST /api/admin/reconcile/monobank`.
 - Revolut Business webhooks `TransactionCreated` та `TransactionStateChanged` із HMAC SHA-256 перевіркою exact raw payload, timestamp tolerance та захистом від out-of-order regression.
 - Нормалізований endpoint для окремого Personal Revolut adapter/aggregator.
 - SQLite WAL ledger, durable inbox/outbox, retry/backoff і відновлення завислих `processing` jobs після crash.

@@ -240,10 +240,10 @@ TRANSFER,Current,2026-08-11 09:15:00,2026-08-11 09:16:00,Rent,-700.00,0.50,EUR,C
     const app = await buildApp({ config, database, worker: { tick } as unknown as PipelineWorker });
     const auth = { authorization: `Bearer ${config.INTERNAL_API_TOKEN}` };
 
-    expect((await app.inject({ method: 'POST', url: '/api/admin/reconcile/monobank' })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'POST', url: '/api/admin/renormalize/monobank' })).statusCode).toBe(401);
     const preview = await app.inject({
       method: 'POST',
-      url: '/api/admin/reconcile/monobank',
+      url: '/api/admin/renormalize/monobank',
       headers: auth,
       payload: { dry_run: true },
     });
@@ -258,7 +258,7 @@ TRANSFER,Current,2026-08-11 09:15:00,2026-08-11 09:16:00,Rent,-700.00,0.50,EUR,C
 
     const applied = await app.inject({
       method: 'POST',
-      url: '/api/admin/reconcile/monobank',
+      url: '/api/admin/renormalize/monobank',
       headers: auth,
       payload: { dry_run: false },
     });

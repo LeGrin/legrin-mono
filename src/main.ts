@@ -4,6 +4,7 @@ import { buildApp } from './http/app.js';
 import { PipelineWorker } from './pipeline/worker.js';
 import { CalendarSync } from './services/calendar.js';
 import { TransactionAnalyzer } from './services/categorizer.js';
+import { MonobankReconciler } from './services/monobank-reconciler.js';
 import { TelegramNotifier } from './services/telegram.js';
 
 const config = loadConfig();
@@ -17,9 +18,14 @@ const calendar = new CalendarSync(config, database);
 const analyzer = new TransactionAnalyzer(config, database);
 const telegram = new TelegramNotifier(config);
 const worker = new PipelineWorker(config, database, calendar, analyzer, telegram, bootstrapLogger);
-const app = await buildApp({ config, database, worker });
+const reconciler = new MonobankReconciler(config, database, bootstrapLogger);
+const app = await buildApp({ config, database, worker, reconciler });
 
 worker.start();
+// Close the hold-confirmation gap as soon as the service boots, then keep
+// reconciling on the configured interval (default: every 15 minutes).
+void reconciler.reconcileSafely().then(() => worker.tick());
+reconciler.start();
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down');

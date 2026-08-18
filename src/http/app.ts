@@ -17,12 +17,14 @@ import type { FinanceDatabase } from '../db/database.js';
 import { CATEGORIES, isSyntheticTransaction } from '../domain/transaction.js';
 import type { PipelineWorker } from '../pipeline/worker.js';
 import { renderDailyEvent } from '../services/calendar.js';
+import type { MonobankReconciler } from '../services/monobank-reconciler.js';
 import { bearerToken, safeSecretEqual } from './security.js';
 
 export interface AppDependencies {
   config: AppConfig;
   database: FinanceDatabase;
   worker: PipelineWorker;
+  reconciler?: MonobankReconciler;
 }
 
 const categoryBodySchema = z.object({
@@ -31,7 +33,7 @@ const categoryBodySchema = z.object({
 });
 
 export async function buildApp(dependencies: AppDependencies): Promise<FastifyInstance> {
-  const { config, database, worker } = dependencies;
+  const { config, database, worker, reconciler } = dependencies;
   const app = Fastify({
     logger: { level: config.LOG_LEVEL },
     bodyLimit: 5_242_880,
@@ -54,6 +56,7 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     hermes: config.hermesEnabled,
     telegram: config.telegramEnabled,
     budget: config.budgetEnabled,
+    monobankReconcile: Boolean(config.MONOBANK_TOKEN && config.MONOBANK_RECONCILE_INTERVAL_SECONDS > 0),
   }));
 
   app.get<{ Params: { secret: string } }>('/webhooks/monobank/:secret', async (request, reply) => {
@@ -184,6 +187,22 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
   });
 
   app.post('/api/admin/reconcile/monobank', async (request, reply) => {
+    if (!apiGuard(request.headers.authorization)) return reply.code(401).send({ error: 'unauthorized' });
+    if (!reconciler || !config.MONOBANK_TOKEN) {
+      return reply.code(503).send({ error: 'monobank_reconcile_not_configured' });
+    }
+    const result = await reconciler.reconcileSafely();
+    void worker.tick();
+    return {
+      accounts: result.accounts,
+      fetched: result.fetched,
+      updated: result.updated,
+      created: result.created,
+      touchedDates: result.touchedDates,
+    };
+  });
+
+  app.post('/api/admin/renormalize/monobank', async (request, reply) => {
     if (!apiGuard(request.headers.authorization)) return reply.code(401).send({ error: 'unauthorized' });
     const body = z.object({ dry_run: z.boolean().default(true) }).default({ dry_run: true }).parse(request.body ?? {});
     const transactions = database.listTransactionsBySource('monobank');

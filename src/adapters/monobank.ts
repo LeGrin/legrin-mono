@@ -5,7 +5,7 @@ import { localDateParts } from '../domain/time.js';
 import type { NormalizedTransaction } from '../domain/transaction.js';
 import { merchantKey } from '../domain/transaction.js';
 
-const statementItemSchema = z.object({
+export const statementItemSchema = z.object({
   id: z.string().min(1),
   time: z.number().int().positive(),
   description: z.string().default('Monobank transaction'),
