@@ -138,6 +138,7 @@ describe('internal transfer classification', () => {
     expect(normalizeWith('Переказ на картку').kind).toBe('transfer');
     expect(normalizeWith('З Білої картки').kind).toBe('transfer');
     expect(normalizeWith('З білої картки').kind).toBe('transfer');
+    expect(normalizeWith('На білу картку').kind).toBe('transfer');
     // Income legs of transfers are also transfers.
     expect(normalizeWith('З гривневого рахунку ФОП', undefined).amountMinor).toBeLessThan(0);
   });
