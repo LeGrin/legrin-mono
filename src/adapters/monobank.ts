@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { localDateParts } from '../domain/time.js';
 import type { NormalizedTransaction } from '../domain/transaction.js';
-import { merchantKey } from '../domain/transaction.js';
+import { isInternalTransferDescription, merchantKey } from '../domain/transaction.js';
 
 export const statementItemSchema = z.object({
   id: z.string().min(1),
@@ -58,12 +58,19 @@ export function monobankDedupeKey(payload: MonobankWebhook): string {
     .digest('hex');
 }
 
-export function normalizeMonobank(payload: MonobankWebhook, timeZone: string): NormalizedTransaction {
+export function normalizeMonobank(
+  payload: MonobankWebhook,
+  timeZone: string,
+  extraTransferPatterns: readonly RegExp[] = [],
+): NormalizedTransaction {
   const item = payload.data.statementItem;
   const occurredAt = new Date(item.time * 1000).toISOString();
   const local = localDateParts(occurredAt, timeZone);
   const merchant = item.counterName?.trim() || item.description.trim() || 'Monobank transaction';
   const currency = ISO_4217[item.currencyCode] ?? `ISO-${item.currencyCode}`;
+  const amountMinor = item.operationAmount ?? item.amount;
+  const description = item.comment?.trim() || item.description.trim() || merchant;
+  const internalTransfer = isInternalTransferDescription(description, extraTransferPatterns);
   return {
     id: `monobank:${payload.data.account}:${item.id}`,
     source: 'monobank',
@@ -73,7 +80,7 @@ export function normalizeMonobank(payload: MonobankWebhook, timeZone: string): N
     updatedAt: new Date().toISOString(),
     localDate: local.date,
     localMonth: local.month,
-    description: item.comment?.trim() || item.description.trim() || merchant,
+    description,
     merchant,
     merchantKey: merchantKey(merchant),
     ...(item.mcc !== undefined ? { mcc: item.mcc } : {}),
@@ -82,12 +89,12 @@ export function normalizeMonobank(payload: MonobankWebhook, timeZone: string): N
     // Calendar and user notifications describe the purchase, so the two
     // fields must be paired instead of labelling an account-currency debit as
     // EUR (for example, 141.07 UAH for a 2.70 EUR Mlinar purchase).
-    amountMinor: item.operationAmount ?? item.amount,
+    amountMinor,
     amountExponent: 2,
     currency,
     status: item.hold ? 'pending' : 'completed',
-    kind: (item.operationAmount ?? item.amount) < 0 ? 'expense' : 'income',
-    needsReview: (item.operationAmount ?? item.amount) < 0,
+    kind: internalTransfer ? 'transfer' : amountMinor < 0 ? 'expense' : 'income',
+    needsReview: !internalTransfer && amountMinor < 0,
     raw: payload,
   };
 }

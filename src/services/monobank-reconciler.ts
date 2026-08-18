@@ -76,6 +76,7 @@ export class MonobankReconciler {
           const normalized = normalizeMonobank(
             monobankWebhookSchema.parse(payload),
             this.config.TIMEZONE,
+            this.config.internalTransferPatterns,
           );
           const previous = this.database.getTransaction(normalized.id);
           const upsert = this.database.upsertTransaction(normalized);

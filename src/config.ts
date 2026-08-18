@@ -34,6 +34,7 @@ const schema = z.object({
   BUDGET_API_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   MONTHLY_BUDGETS_JSON: z.string().default('{}'),
   CATEGORY_BUDGETS_JSON: z.string().default('{}'),
+  INTERNAL_TRANSFER_PATTERNS_JSON: z.string().default('[]'),
   CATEGORY_CONFIDENCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.72),
   WORKER_INTERVAL_MS: z.coerce.number().int().positive().default(750),
   MAX_DELIVERY_ATTEMPTS: z.coerce.number().int().positive().default(12),
@@ -60,6 +61,16 @@ function parseCategoryBudgetMap(raw: string): CategoryBudgetMap {
   }
 }
 
+function parseTransferPatterns(raw: string): RegExp[] {
+  try {
+    const value = JSON.parse(raw) as unknown;
+    const sources = z.array(z.string().min(1)).parse(value);
+    return sources.map((source) => new RegExp(source, 'iu'));
+  } catch (error) {
+    throw new Error('INTERNAL_TRANSFER_PATTERNS_JSON must be a JSON array of regex strings', { cause: error });
+  }
+}
+
 export type AppConfig = ReturnType<typeof loadConfig>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
@@ -71,6 +82,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     ...parsed,
     monthlyBudgets: parseMoneyMap(parsed.MONTHLY_BUDGETS_JSON, 'MONTHLY_BUDGETS_JSON'),
     categoryBudgets: parseCategoryBudgetMap(parsed.CATEGORY_BUDGETS_JSON),
+    internalTransferPatterns: parseTransferPatterns(parsed.INTERNAL_TRANSFER_PATTERNS_JSON),
     googleSidecarEnabled,
     calendarEnabled: Boolean(parsed.GOOGLE_CALENDAR_ID && (
       parsed.GOOGLE_SERVICE_ACCOUNT_FILE || parsed.GOOGLE_SERVICE_ACCOUNT_JSON || googleSidecarEnabled

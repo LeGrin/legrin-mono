@@ -63,6 +63,24 @@ export function merchantKey(value: string): string {
     .toLocaleUpperCase('en-US');
 }
 
+// Movements between the owner's own accounts (ФОП → mono UAH → mono EUR →
+// Revolut) are not spending. Monobank uses predictable statement descriptions
+// for them, so they are classified as transfers and excluded from expense
+// totals while remaining visible in the daily calendar lines.
+const BUILT_IN_INTERNAL_TRANSFER_PATTERNS: RegExp[] = [
+  /^з\s+.{0,40}?рахунку\s+фоп/iu,
+  /^на\s+.{0,40}?рахунок\s+фоп/iu,
+  /^переказ\s+на\s+картку/iu,
+  /^з\s+(?:білої|єврової|чорної|синьої)\s+картки/iu,
+];
+
+export function isInternalTransferDescription(description: string, extraPatterns: readonly RegExp[] = []): boolean {
+  const trimmed = description.trim();
+  if (!trimmed) return false;
+  return [...BUILT_IN_INTERNAL_TRANSFER_PATTERNS, ...extraPatterns]
+    .some((pattern) => pattern.test(trimmed));
+}
+
 export function isSyntheticTransaction(transaction: Pick<NormalizedTransaction, 'merchantKey' | 'raw'>): boolean {
   if (transaction.merchantKey === 'SYNTHETIC PROBE') return true;
   if (!transaction.raw || typeof transaction.raw !== 'object') return false;

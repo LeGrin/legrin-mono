@@ -118,3 +118,46 @@ describe('bank adapters', () => {
     expect(verifyRevolutSignature({ ...options, nowMs: options.nowMs + 301_000 })).toBe(false);
   });
 });
+
+describe('internal transfer classification', () => {
+  const account = 'mono-account';
+  const base = { time: 1_786_968_000, currencyCode: 978, amount: -14_473, operationAmount: -280, mcc: 6051 };
+
+  function normalizeWith(description: string, counterName?: string) {
+    const item = { id: 'item-1', description, hold: false, ...base, ...(counterName ? { counterName } : {}) };
+    return normalizeMonobank(
+      { type: 'StatementItem', data: { account, statementItem: item } },
+      'Europe/Zagreb',
+    );
+  }
+
+  it('classifies movements between own accounts as transfers, not expenses', () => {
+    expect(normalizeWith('На гривневий рахунок ФОП для переказу на картку', 'Ковальов Даниіл').kind).toBe('transfer');
+    expect(normalizeWith('З гривневого рахунку ФОП').kind).toBe('transfer');
+    expect(normalizeWith('З єврового рахунку ФОП для переказу на картку').kind).toBe('transfer');
+    expect(normalizeWith('Переказ на картку').kind).toBe('transfer');
+    expect(normalizeWith('З Білої картки').kind).toBe('transfer');
+    expect(normalizeWith('З білої картки').kind).toBe('transfer');
+    // Income legs of transfers are also transfers.
+    expect(normalizeWith('З гривневого рахунку ФОП', undefined).amountMinor).toBeLessThan(0);
+  });
+
+  it('does not misclassify real merchants as transfers', () => {
+    expect(normalizeWith('MLINAR CENTAR').kind).toBe('expense');
+    expect(normalizeWith('TIFON BP').kind).toBe('expense');
+    expect(normalizeWith('ФОП Редько Валерія Сергіївна').kind).toBe('expense');
+    expect(normalizeWith('Ковальов Даниіл', 'Ковальов Даниіл').kind).toBe('expense');
+  });
+
+  it('supports operator-provided extra patterns', () => {
+    const patterns = [/^top-up to revolut/iu];
+    const item = { id: 'item-2', description: 'Top-up to Revolut', hold: false, ...base };
+    const normalized = normalizeMonobank(
+      { type: 'StatementItem', data: { account, statementItem: item } },
+      'Europe/Zagreb',
+      patterns,
+    );
+    expect(normalized.kind).toBe('transfer');
+    expect(normalized.needsReview).toBe(false);
+  });
+});

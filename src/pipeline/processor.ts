@@ -34,7 +34,13 @@ export class WebhookProcessor {
 
   process(source: string, payload: unknown): void {
     if (source === 'monobank') {
-      this.persist([normalizeMonobank(monobankWebhookSchema.parse(payload), this.config.TIMEZONE)]);
+      this.persist([
+        normalizeMonobank(
+          monobankWebhookSchema.parse(payload),
+          this.config.TIMEZONE,
+          this.config.internalTransferPatterns,
+        ),
+      ]);
       return;
     }
     if (source === 'revolut_personal') {

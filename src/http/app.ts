@@ -207,19 +207,25 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     const body = z.object({ dry_run: z.boolean().default(true) }).default({ dry_run: true }).parse(request.body ?? {});
     const transactions = database.listTransactionsBySource('monobank');
     const changes = transactions.flatMap((transaction) => {
-      const normalized = normalizeMonobank(monobankWebhookSchema.parse(transaction.raw), config.TIMEZONE);
+      const normalized = normalizeMonobank(
+        monobankWebhookSchema.parse(transaction.raw),
+        config.TIMEZONE,
+        config.internalTransferPatterns,
+      );
       if (
         normalized.amountMinor === transaction.amountMinor
         && normalized.amountExponent === transaction.amountExponent
         && normalized.currency === transaction.currency
+        && normalized.kind === transaction.kind
+        && normalized.status === transaction.status
       ) return [];
       return [{
         transaction,
         normalized,
         result: {
           merchant: transaction.merchant,
-          before: { amountMinor: transaction.amountMinor, currency: transaction.currency },
-          after: { amountMinor: normalized.amountMinor, currency: normalized.currency },
+          before: { amountMinor: transaction.amountMinor, currency: transaction.currency, kind: transaction.kind, status: transaction.status },
+          after: { amountMinor: normalized.amountMinor, currency: normalized.currency, kind: normalized.kind, status: normalized.status },
         },
       }];
     });

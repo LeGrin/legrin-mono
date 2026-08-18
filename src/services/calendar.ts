@@ -77,9 +77,15 @@ export function renderDailyEvent(
     .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt))
     .map((transaction) => {
       const time = localDateParts(transaction.occurredAt, config.TIMEZONE).time;
-      const category = transaction.category ?? 'Uncategorized';
+      const category = transaction.kind === 'transfer' ? 'Transfers' : transaction.category ?? 'Uncategorized';
       const bank = transaction.source === 'monobank' ? 'mono' : transaction.source === 'revolut_business' ? 'revolut-biz' : 'revolut';
-      return `${transactionEmoji(transaction)} ${time} [${bank}] ${transaction.merchant} · ${money(transaction.amountMinor, transaction.currency, transaction.amountExponent)} · ${category}`;
+      // Internal transfers carry the meaningful direction in their description
+      // (e.g. "Переказ на картку", "З гривневого рахунку ФОП"), while merchants
+      // are often just a card owner name, so transfers render the description.
+      const label = transaction.kind === 'transfer' && transaction.description !== transaction.merchant
+        ? transaction.description
+        : transaction.merchant;
+      return `${transactionEmoji(transaction)} ${time} [${bank}] ${label} · ${money(transaction.amountMinor, transaction.currency, transaction.amountExponent)} · ${category}`;
     });
 
   const categoryLines = monthSummary.map((row) =>
