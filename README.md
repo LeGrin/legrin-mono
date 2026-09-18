@@ -60,9 +60,9 @@ Production CI/CD, live topology, and Monobank activation runbook: [`deploy/CICD.
 
 ```bash
 cp .env.example .env
-npm install
-npm run check
-npm run dev
+pnpm install --frozen-lockfile
+pnpm run check
+pnpm run dev
 ```
 
 Мінімально обов'язкові значення:
@@ -106,7 +106,7 @@ docker compose ps
 3. Зареєструйте webhook:
 
 ```bash
-npm run register:monobank
+pnpm run register:monobank
 ```
 
 Endpoint:
@@ -276,8 +276,8 @@ Correction body:
 ## Перевірка
 
 ```bash
-npm run check
-npm run build
+pnpm run check
+pnpm run build
 ```
 
 Test suite покриває Monobank normalization/deduplication, Personal Revolut normalization, офіційний Revolut HMAC vector, ISO currency exponents, crash recovery, out-of-order status protection, end-to-end SQLite pipeline, Calendar rendering та protected HTTP API.
